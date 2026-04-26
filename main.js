@@ -23,19 +23,32 @@ if (!fs.existsSync(model)) {
     execSync(`wget https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/mls_10246/low/${modelJson}`);
 }
 
-// Generar audio WAV con Piper
+// Generar WAV
 console.log("Generando audio WAV...");
 execSync(`echo "${text.replace(/"/g, '\\"')}" | piper --model ${model} --output_file ${outputWav}`);
 
-// Convertir a MP3 con FFmpeg
+// Convertir a MP3
 console.log("Convirtiendo a MP3...");
 execSync(`ffmpeg -y -i ${outputWav} -vn -ar 44100 -ac 2 -b:a 192k ${outputMp3}`);
 
-// Guardar en Apify
-await Actor.setValue('OUTPUT_AUDIO_MP3', fs.readFileSync(outputMp3), {
+// Guardar en Key-Value Store
+const store = await Actor.openKeyValueStore();
+await store.setValue('audio.mp3', fs.readFileSync(outputMp3), {
     contentType: 'audio/mpeg',
 });
 
-console.log("MP3 generado correctamente");
+// 🔗 GENERAR LINK
+const storeId = store.id;
+const runId = Actor.getEnv().actorRunId;
+
+const url = `https://api.apify.com/v2/key-value-stores/${storeId}/records/audio.mp3?disableRedirect=true`;
+
+console.log("LINK DEL MP3:");
+console.log(url);
+
+// Devolver también en OUTPUT
+await Actor.setValue('OUTPUT', {
+    mp3Url: url,
+});
 
 await Actor.exit();

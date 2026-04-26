@@ -1,40 +1,35 @@
-FROM apify/actor-node:20
+# Usa Debian (glibc) → necesario para onnxruntime
+FROM apify/actor-node:20-bookworm
 
-# Instalar dependencias del sistema (Alpine usa apk, no apt)
-RUN apk add --no-cache \
+# Instalar dependencias del sistema
+RUN apt-get update && apt-get install -y \
     ffmpeg \
     wget \
     python3 \
-    py3-pip \
-    py3-virtualenv \
-    build-base \
-    libstdc++ \
-    libgcc
+    python3-pip \
+    python3-venv \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
 # Crear entorno virtual
 RUN python3 -m venv /venv
-
-# Activar venv en todo el contenedor
 ENV PATH="/venv/bin:$PATH"
 
-# Actualizar pip dentro del venv
+# Actualizar pip
 RUN pip install --upgrade pip
 
-# Instalar dependencias en orden correcto (CLAVE)
+# Instalar dependencias Python (compatibles)
 RUN pip install --no-cache-dir \
     "numpy<2" \
-    onnxruntime==1.17.3 \
-    piper-phonemize==1.1.0 \
-    piper-tts==1.4.2
+    onnxruntime \
+    piper-phonemize \
+    piper-tts
 
-# Directorio de trabajo
-WORKDIR /usr/src/app
-
-# Copiar archivos
+# Copiar proyecto
 COPY . ./
 
-# Instalar dependencias Node
-RUN npm install --omit=dev
+# Instalar dependencias Node si tienes package.json
+RUN npm install --omit=dev || true
 
-# Comando de inicio
-CMD ["npm", "start"]
+# Comando por defecto (ajústalo si tu archivo principal no es main.js)
+CMD ["node", "main.js"]

@@ -3,8 +3,6 @@ FROM node:18-bullseye
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     wget \
-    python3 \
-    python3-pip \
     bash \
     && rm -rf /var/lib/apt/lists/*
 
@@ -20,17 +18,13 @@ RUN mkdir -p /opt/piper && \
     tar -xzf /tmp/piper.tar.gz -C /opt/piper --strip-components=1 && \
     chmod -R 755 /opt/piper && \
     ln -s /opt/piper/piper /usr/bin/piper && \
-    chmod 755 /opt/piper/piper && \
     rm /tmp/piper.tar.gz
 
-# 👇 DEBUG
-RUN ls -la /opt/piper && piper --help || true
-
-# 🔥 MODELO LOW (CLAVE)
+# 🔊 Modelo ALD (MEDIUM) ✅ EXISTE
 RUN mkdir -p /models && \
-    wget -O /models/es_AR-daniela-low.onnx \
-    https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/daniela/low/es_AR-daniela-low.onnx && \
-    wget -O /models/es_AR-daniela-low.onnx.json \
-    https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/daniela/low/es_AR-daniela-low.onnx.json
+    wget -O /models/es_ES-ald-medium.onnx \
+    https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/ald/medium/es_ES-ald-medium.onnx && \
+    wget -O /models/es_ES-ald-medium.onnx.json \
+    https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/ald/medium/es_ES-ald-medium.onnx.json
 
 CMD ["node", "main.js"]

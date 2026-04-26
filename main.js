@@ -4,42 +4,38 @@ import fs from 'fs';
 
 await Actor.init();
 
-// texto dinámico
-const input = await Actor.getInput();
-const text = input?.text || "Hola, este es un video viral";
+// INPUT
+const input = await Actor.getInput() || {};
+const text = input.text || "Hola, esta es una voz argentina generada con Piper";
 
-// evitar errores en shell
-const safeText = text.replace(/"/g, '\\"');
+// Modelo argentino
+const model = "es_AR-mls_10246-low.onnx";
+const modelJson = model + ".json";
 
-console.log("Generando audio con Piper...");
+const outputWav = "output.wav";
+const outputMp3 = "output.mp3";
 
-// generar WAV
-execSync(`
-echo "${safeText}" | piper \
---model es_AR.onnx \
---output_file output.wav
-`, { stdio: 'inherit' });
+// Descargar modelo si no existe
+if (!fs.existsSync(model)) {
+    console.log("Descargando modelo argentino...");
 
-// convertir a MP3
-execSync(`
-ffmpeg -y -i output.wav -codec:a libmp3lame -b:a 128k output.mp3
-`, { stdio: 'inherit' });
+    execSync(`wget https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/mls_10246/low/${model}`);
+    execSync(`wget https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/mls_10246/low/${modelJson}`);
+}
 
-// guardar archivo
-const buffer = fs.readFileSync('output.mp3');
-const key = \`audio-\${Date.now()}.mp3\`;
+// Generar audio WAV con Piper
+console.log("Generando audio WAV...");
+execSync(`echo "${text.replace(/"/g, '\\"')}" | piper --model ${model} --output_file ${outputWav}`);
 
-await Actor.setValue(key, buffer, {
+// Convertir a MP3 con FFmpeg
+console.log("Convirtiendo a MP3...");
+execSync(`ffmpeg -y -i ${outputWav} -vn -ar 44100 -ac 2 -b:a 192k ${outputMp3}`);
+
+// Guardar en Apify
+await Actor.setValue('OUTPUT_AUDIO_MP3', fs.readFileSync(outputMp3), {
     contentType: 'audio/mpeg',
 });
 
-// generar URL
-const store = await Actor.openKeyValueStore();
-const url = \`https://api.apify.com/v2/key-value-stores/\${store.id}/records/\${key}\`;
-
-console.log("AUDIO URL:", url);
-
-// devolver resultado
-await Actor.pushData({ audioUrl: url });
+console.log("MP3 generado correctamente");
 
 await Actor.exit();

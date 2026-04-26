@@ -28,11 +28,14 @@ try {
         { stdio: 'inherit' }
     );
 
-    await Actor.setValue('OUTPUT_MP3', fs.readFileSync(outputMp3), {
+    // 🔥 OUTPUT ÚNICO
+    const key = `OUTPUT_MP3_${Date.now()}`;
+
+    await Actor.setValue(key, fs.readFileSync(outputMp3), {
         contentType: 'audio/mpeg',
     });
 
-    const url = `https://api.apify.com/v2/key-value-stores/${Actor.getEnv().defaultKeyValueStoreId}/records/OUTPUT_MP3`;
+    const url = `https://api.apify.com/v2/key-value-stores/${Actor.getEnv().defaultKeyValueStoreId}/records/${key}`;
 
     console.log("✅ MP3 listo:");
     console.log(url);

@@ -1,6 +1,6 @@
-FROM node:20-bullseye
+FROM apify/actor-node:20
 
-# Instalar dependencias
+# Instalar dependencias del sistema
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     wget \
@@ -8,19 +8,20 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
-# Instalar Piper
-RUN pip3 install --no-cache-dir \
-    onnxruntime==1.17.3 \
-    piper-tts==1.4.0
+# 🔥 IMPORTANTE: arreglar error de numpy
+RUN pip install --no-cache-dir "numpy<2"
 
-# Carpeta de trabajo
+# Instalar Piper y dependencias compatibles
+RUN pip install --no-cache-dir piper-tts onnxruntime
+
+# Crear directorio de trabajo
 WORKDIR /app
 
-# Copiar todo
-COPY . .
-
-# Instalar dependencias Node si tienes package.json
+# Copiar archivos
+COPY package*.json ./
 RUN npm install
 
-# Ejecutar
+COPY . ./
+
+# Comando de inicio
 CMD ["node", "main.js"]

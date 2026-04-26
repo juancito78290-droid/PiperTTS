@@ -1,37 +1,42 @@
-FROM apify/actor-node:18
+import { Actor } from 'apify';
+import { execSync } from 'child_process';
+import fs from 'fs';
 
-RUN apk add --no-cache \
-    ffmpeg \
-    wget \
-    git \
-    python3 \
-    py3-pip \
-    bash
+await Actor.init();
 
-# Crear carpeta
-RUN mkdir -p /opt/piper
+const input = await Actor.getInput() || {};
+const text = input.text || "Hola, esta es la voz argentina Daniela funcionando correctamente";
 
-# Descargar Piper (con retry para evitar 502)
-RUN wget --tries=5 --waitretry=5 -O /tmp/piper.tar.gz \
-https://github.com/rhasspy/piper/releases/download/v1.2.0/piper_linux_x86_64.tar.gz \
-&& tar -xzf /tmp/piper.tar.gz -C /opt/piper \
-&& chmod +x /opt/piper/piper \
-&& ln -s /opt/piper/piper /usr/local/bin/piper \
-&& rm /tmp/piper.tar.gz
+// ✅ MODELO CORRECTO
+const model = "/models/es_AR-daniela-high.onnx";
 
-# Modelos
-RUN mkdir -p /models
+const outputWav = "/tmp/output.wav";
+const outputMp3 = "/tmp/output.mp3";
 
-RUN wget -O /models/es_AR-daniela-high.onnx \
-https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/daniela/high/es_AR-daniela-high.onnx \
-&& wget -O /models/es_AR-daniela-high.onnx.json \
-https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/daniela/high/es_AR-daniela-high.onnx.json
+try {
+    console.log("Generando audio con Piper...");
 
-WORKDIR /usr/src/app
+    fs.writeFileSync('/tmp/input.txt', text);
 
-COPY package*.json ./
-RUN npm install --omit=dev
+    execSync(`piper --model ${model} --output_file ${outputWav} < /tmp/input.txt`, {
+        stdio: 'inherit'
+    });
 
-COPY . .
+    console.log("Convirtiendo a MP3...");
+    execSync(`ffmpeg -y -i ${outputWav} -codec:a libmp3lame -qscale:a 2 ${outputMp3}`);
 
-CMD ["node", "main.js"]
+    await Actor.setValue('OUTPUT_MP3', fs.readFileSync(outputMp3), {
+        contentType: 'audio/mpeg',
+    });
+
+    const url = `https://api.apify.com/v2/key-value-stores/${Actor.getEnv().defaultKeyValueStoreId}/records/OUTPUT_MP3`;
+
+    console.log("✅ MP3 listo:");
+    console.log(url);
+
+} catch (err) {
+    console.error("❌ Error ejecutando Piper:", err.message);
+    throw err;
+}
+
+await Actor.exit();

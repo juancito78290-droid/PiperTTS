@@ -5,20 +5,23 @@ RUN apk add --no-cache \
     wget \
     git \
     python3 \
-    py3-pip
+    py3-pip \
+    bash
 
-# Instalar Piper correctamente
-RUN wget https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz \
-    && tar -xzf piper_linux_x86_64.tar.gz \
-    && mv piper /usr/local/bin/piper \
-    && chmod +x /usr/local/bin/piper/piper \
-    && ln -s /usr/local/bin/piper/piper /usr/local/bin/piper-bin \
-    && rm piper_linux_x86_64.tar.gz
+# Crear carpeta
+RUN mkdir -p /opt/piper
 
-# Crear carpeta de modelos
+# Descargar Piper (con retry para evitar 502)
+RUN wget --tries=5 --waitretry=5 -O /tmp/piper.tar.gz \
+https://github.com/rhasspy/piper/releases/download/v1.2.0/piper_linux_x86_64.tar.gz \
+&& tar -xzf /tmp/piper.tar.gz -C /opt/piper \
+&& chmod +x /opt/piper/piper \
+&& ln -s /opt/piper/piper /usr/local/bin/piper \
+&& rm /tmp/piper.tar.gz
+
+# Modelos
 RUN mkdir -p /models
 
-# Descargar modelo correcto (HIGH)
 RUN wget -O /models/es_AR-daniela-high.onnx \
 https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/daniela/high/es_AR-daniela-high.onnx \
 && wget -O /models/es_AR-daniela-high.onnx.json \

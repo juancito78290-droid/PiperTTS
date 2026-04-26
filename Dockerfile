@@ -14,7 +14,7 @@ COPY package*.json ./
 RUN npm install
 COPY . ./
 
-# 🔥 Instalar Piper BIEN (sin asumir rutas)
+# 🔥 Instalar Piper
 RUN mkdir -p /opt/piper && \
     wget -O /tmp/piper.tar.gz https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz && \
     tar -xzf /tmp/piper.tar.gz -C /opt/piper --strip-components=1 && \
@@ -23,14 +23,14 @@ RUN mkdir -p /opt/piper && \
     chmod 755 /opt/piper/piper && \
     rm /tmp/piper.tar.gz
 
-# 👇 DEBUG (clave si algo falla)
+# 👇 DEBUG
 RUN ls -la /opt/piper && piper --help || true
 
-# Modelos
+# 🔥 MODELO LOW (CLAVE)
 RUN mkdir -p /models && \
-    wget -O /models/es_AR-daniela-high.onnx \
-    https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/daniela/high/es_AR-daniela-high.onnx && \
-    wget -O /models/es_AR-daniela-high.onnx.json \
-    https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/daniela/high/es_AR-daniela-high.onnx.json
+    wget -O /models/es_AR-daniela-low.onnx \
+    https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/daniela/low/es_AR-daniela-low.onnx && \
+    wget -O /models/es_AR-daniela-low.onnx.json \
+    https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/daniela/low/es_AR-daniela-low.onnx.json
 
 CMD ["node", "main.js"]

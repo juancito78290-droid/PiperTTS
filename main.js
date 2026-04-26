@@ -5,24 +5,29 @@ import fs from 'fs';
 await Actor.init();
 
 const input = await Actor.getInput() || {};
-const text = input.text || "Hola, probando la voz Daniela correctamente";
+const text = input.text || "Hola, probando la voz ALD correctamente";
 
-// 🔥 MODELO LOW (CLAVE)
-const model = "/models/es_AR-daniela-low.onnx";
-
+const model = "/models/es_ES-ald-medium.onnx";
 const outputWav = "/tmp/output.wav";
 const outputMp3 = "/tmp/output.mp3";
 
 try {
     console.log("🔊 Generando audio con Piper...");
 
+    // Guardar texto
     fs.writeFileSync('/tmp/input.txt', text);
 
-    // ✅ FIX CUELGUE (stdin correcto)
+    // Leer texto (evita freeze)
     const textInput = fs.readFileSync('/tmp/input.txt', 'utf-8');
 
+    // 🔥 Piper optimizado
     execSync(
-        `piper --model ${model} --output_file ${outputWav} --sentence_silence 0.15`,
+        `piper --model ${model} \
+        --output_file ${outputWav} \
+        --length_scale 0.95 \
+        --noise_scale 0.6 \
+        --noise_w 0.7 \
+        --sentence_silence 0.25`,
         {
             input: textInput,
             stdio: ['pipe', 'inherit', 'inherit']
@@ -31,13 +36,12 @@ try {
 
     console.log("🎵 Convirtiendo a MP3...");
 
-    // 💰 MÁS BARATO
     execSync(
-        `ffmpeg -y -i ${outputWav} -codec:a libmp3lame -qscale:a 6 ${outputMp3}`,
+        `ffmpeg -y -i ${outputWav} -codec:a libmp3lame -qscale:a 2 ${outputMp3}`,
         { stdio: 'inherit' }
     );
 
-    // 🔥 OUTPUT ÚNICO (IMPORTANTE PARA PARALELO)
+    // 🔥 OUTPUT ÚNICO
     const key = `OUTPUT_MP3_${Date.now()}`;
 
     await Actor.setValue(key, fs.readFileSync(outputMp3), {

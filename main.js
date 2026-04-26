@@ -1,45 +1,36 @@
-import { Actor } from 'apify';
-import { execSync } from 'child_process';
-import fs from 'fs';
+FROM node:18-bullseye
 
-await Actor.init();
+# Instalar dependencias
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    wget \
+    python3 \
+    python3-pip \
+    bash \
+    && rm -rf /var/lib/apt/lists/*
 
-const input = await Actor.getInput() || {};
-const text = input.text || "Hola, probando la voz Daniela correctamente";
+WORKDIR /app
 
-const model = "/models/es_AR-daniela-high.onnx";
-const outputWav = "/tmp/output.wav";
-const outputMp3 = "/tmp/output.mp3";
+# Copiar proyecto
+COPY package*.json ./
+RUN npm install
 
-try {
-    console.log("🔊 Generando audio con Piper...");
+COPY . ./
 
-    fs.writeFileSync('/tmp/input.txt', text);
+# Instalar Piper (glibc compatible)
+RUN mkdir -p /opt && \
+    wget -O /tmp/piper.tar.gz https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz && \
+    tar -xzf /tmp/piper.tar.gz -C /opt && \
+    chmod -R 755 /opt/piper && \
+    cp /opt/piper/piper /usr/bin/piper && \
+    chmod 755 /usr/bin/piper && \
+    rm /tmp/piper.tar.gz
 
-    execSync(
-        `piper --model ${model} --output_file ${outputWav} < /tmp/input.txt`,
-        { stdio: 'inherit' }
-    );
+# Modelos
+RUN mkdir -p /models && \
+    wget -O /models/es_AR-daniela-high.onnx \
+    https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/daniela/high/es_AR-daniela-high.onnx && \
+    wget -O /models/es_AR-daniela-high.onnx.json \
+    https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/daniela/high/es_AR-daniela-high.onnx.json
 
-    console.log("🎵 Convirtiendo a MP3...");
-
-    execSync(
-        `ffmpeg -y -i ${outputWav} -codec:a libmp3lame -qscale:a 2 ${outputMp3}`,
-        { stdio: 'inherit' }
-    );
-
-    await Actor.setValue('OUTPUT_MP3', fs.readFileSync(outputMp3), {
-        contentType: 'audio/mpeg',
-    });
-
-    const url = `https://api.apify.com/v2/key-value-stores/${Actor.getEnv().defaultKeyValueStoreId}/records/OUTPUT_MP3`;
-
-    console.log("✅ MP3 listo:");
-    console.log(url);
-
-} catch (err) {
-    console.error("❌ Error real:", err);
-    throw err;
-}
-
-await Actor.exit();
+CMD ["node", "main.js"]

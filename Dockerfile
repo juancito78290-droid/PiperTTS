@@ -1,13 +1,10 @@
 FROM apify/actor-node:20
 
-# instalar ffmpeg
-RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
+# instalar ffmpeg + wget en Alpine
+RUN apk add --no-cache ffmpeg wget python3 py3-pip
 
 # instalar piper
-RUN pip install --no-cache-dir piper-tts
-
-# instalar wget
-RUN apt-get update && apt-get install -y wget
+RUN pip3 install --no-cache-dir piper-tts
 
 # descargar modelo argentino (daniela)
 RUN wget -O es_AR.onnx https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/daniela/high/es_AR-daniela-high.onnx

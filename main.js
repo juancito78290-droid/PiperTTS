@@ -4,6 +4,7 @@ import fs from 'fs';
 
 await Actor.init();
 
+// texto dinámico
 const input = await Actor.getInput();
 const text = input?.text || "Hola, este es un video viral";
 
@@ -12,33 +13,33 @@ const safeText = text.replace(/"/g, '\\"');
 
 console.log("Generando audio con Piper...");
 
-// 1. WAV con Piper
+// generar WAV
 execSync(`
 echo "${safeText}" | piper \
 --model es_AR.onnx \
 --output_file output.wav
 `, { stdio: 'inherit' });
 
-// 2. WAV → MP3
+// convertir a MP3
 execSync(`
 ffmpeg -y -i output.wav -codec:a libmp3lame -b:a 128k output.mp3
 `, { stdio: 'inherit' });
 
-// 3. guardar en Apify
+// guardar archivo
 const buffer = fs.readFileSync('output.mp3');
-const key = `audio-${Date.now()}.mp3`;
+const key = \`audio-\${Date.now()}.mp3\`;
 
 await Actor.setValue(key, buffer, {
     contentType: 'audio/mpeg',
 });
 
-// 4. generar URL
+// generar URL
 const store = await Actor.openKeyValueStore();
-const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/${key}`;
+const url = \`https://api.apify.com/v2/key-value-stores/\${store.id}/records/\${key}\`;
 
 console.log("AUDIO URL:", url);
 
-// 5. devolver resultado
+// devolver resultado
 await Actor.pushData({ audioUrl: url });
 
 await Actor.exit();

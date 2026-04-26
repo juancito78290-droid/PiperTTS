@@ -12,15 +12,21 @@ const outputWav = "/tmp/output.wav";
 const outputMp3 = "/tmp/output.mp3";
 
 try {
-    console.log("Generando audio con Piper...");
+    console.log("🔊 Generando audio con Piper...");
 
     fs.writeFileSync('/tmp/input.txt', text);
 
-    // 👇 IMPORTANTE: usar ruta completa por si PATH falla
-    execSync(`/usr/local/bin/piper --model ${model} --output_file ${outputWav} < /tmp/input.txt`);
+    execSync(
+        `piper --model ${model} --output_file ${outputWav} < /tmp/input.txt`,
+        { stdio: 'inherit' }
+    );
 
-    console.log("Convirtiendo a MP3...");
-    execSync(`ffmpeg -y -i ${outputWav} -codec:a libmp3lame -qscale:a 2 ${outputMp3}`);
+    console.log("🎵 Convirtiendo a MP3...");
+
+    execSync(
+        `ffmpeg -y -i ${outputWav} -codec:a libmp3lame -qscale:a 2 ${outputMp3}`,
+        { stdio: 'inherit' }
+    );
 
     await Actor.setValue('OUTPUT_MP3', fs.readFileSync(outputMp3), {
         contentType: 'audio/mpeg',
@@ -32,7 +38,7 @@ try {
     console.log(url);
 
 } catch (err) {
-    console.error("❌ Error:", err.message);
+    console.error("❌ Error real:", err);
     throw err;
 }
 

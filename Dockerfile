@@ -1,6 +1,6 @@
-FROM node:20
+FROM apify/actor-node:18
 
-# instalar dependencias
+# Instalar dependencias del sistema
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     wget \
@@ -8,15 +8,20 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
-# instalar piper correctamente (en Debian sí funciona)
-RUN pip3 install --no-cache-dir piper-tts
+# Instalar Piper sin conflictos
+RUN pip3 install --no-cache-dir \
+    onnxruntime==1.17.3 \
+    piper-tts==1.4.0 \
+    --break-system-packages
 
-# descargar modelo argentino
-RUN wget -O es_AR.onnx https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/daniela/high/es_AR-daniela-high.onnx
+# Crear directorio de trabajo
+WORKDIR /usr/src/app
 
-RUN wget -O es_AR.onnx.json https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/daniela/high/es_AR-daniela-high.onnx.json
+# Copiar archivos
+COPY package*.json ./
+RUN npm install
 
-# copiar código
-COPY . ./
+COPY . .
 
+# Ejecutar
 CMD ["node", "main.js"]

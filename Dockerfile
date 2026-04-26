@@ -1,4 +1,4 @@
-FROM apify/actor-node:18-debian
+FROM apify/actor-node:20
 
 # Instalar dependencias del sistema
 RUN apt-get update && apt-get install -y \
@@ -8,16 +8,16 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
-# Instalar Piper + onnxruntime (compatible en Debian)
+# Instalar Piper + onnxruntime
 RUN pip3 install --no-cache-dir \
     onnxruntime==1.17.3 \
     piper-tts==1.4.0
 
-# Crear carpeta de trabajo
+# Carpeta de trabajo
 WORKDIR /app
 
 # Copiar archivos
 COPY . ./
 
-# Comando por defecto
+# Ejecutar app
 CMD ["node", "main.js"]

@@ -1,40 +1,36 @@
-FROM apify/actor-node:18
+FROM node:18-bullseye
 
-# Instalar dependencias
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y \
     ffmpeg \
     wget \
     python3 \
-    py3-pip \
-    bash
+    python3-pip \
+    bash \
+    && rm -rf /var/lib/apt/lists/*
 
-# Crear carpeta de trabajo
-WORKDIR /usr/src/app
+WORKDIR /app
 
-# Copiar código
 COPY package*.json ./
 RUN npm install
-
 COPY . ./
 
-# Instalar Piper (FIX permisos + evitar symlink)
-RUN mkdir -p /opt && \
+# 🔥 Instalar Piper BIEN (sin asumir rutas)
+RUN mkdir -p /opt/piper && \
     wget -O /tmp/piper.tar.gz https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz && \
-    tar -xzf /tmp/piper.tar.gz -C /opt && \
-    mv /opt/piper /opt/piper-bin && \
-    chmod -R 755 /opt/piper-bin && \
-    cp /opt/piper-bin/piper /usr/bin/piper && \
-    chmod 755 /usr/bin/piper && \
+    tar -xzf /tmp/piper.tar.gz -C /opt/piper --strip-components=1 && \
+    chmod -R 755 /opt/piper && \
+    ln -s /opt/piper/piper /usr/bin/piper && \
+    chmod 755 /opt/piper/piper && \
     rm /tmp/piper.tar.gz
 
-# Crear carpeta de modelos
-RUN mkdir -p /models
+# 👇 DEBUG (clave si algo falla)
+RUN ls -la /opt/piper && piper --help || true
 
-# Descargar modelo (Daniela)
-RUN wget -O /models/es_AR-daniela-high.onnx \
+# Modelos
+RUN mkdir -p /models && \
+    wget -O /models/es_AR-daniela-high.onnx \
     https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/daniela/high/es_AR-daniela-high.onnx && \
     wget -O /models/es_AR-daniela-high.onnx.json \
     https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/daniela/high/es_AR-daniela-high.onnx.json
 
-# Comando por defecto
 CMD ["node", "main.js"]

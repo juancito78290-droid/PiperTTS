@@ -4,35 +4,37 @@ FROM apify/actor-node:18
 RUN apk add --no-cache \
     ffmpeg \
     wget \
-    git \
     python3 \
     py3-pip \
     bash
 
-# Crear carpeta
-RUN mkdir -p /opt/piper
+# Crear carpeta de trabajo
+WORKDIR /usr/src/app
 
-# Descargar Piper (SIEMPRE latest para evitar 404)
-RUN wget -O /tmp/piper.tar.gz \
-    https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz && \
-    tar -xzf /tmp/piper.tar.gz -C /opt/piper && \
-    chmod +x /opt/piper/piper && \
-    ln -s /opt/piper/piper /usr/local/bin/piper && \
+# Copiar código
+COPY package*.json ./
+RUN npm install
+
+COPY . ./
+
+# Instalar Piper (FIX permisos + evitar symlink)
+RUN mkdir -p /opt && \
+    wget -O /tmp/piper.tar.gz https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz && \
+    tar -xzf /tmp/piper.tar.gz -C /opt && \
+    mv /opt/piper /opt/piper-bin && \
+    chmod -R 755 /opt/piper-bin && \
+    cp /opt/piper-bin/piper /usr/bin/piper && \
+    chmod 755 /usr/bin/piper && \
     rm /tmp/piper.tar.gz
 
 # Crear carpeta de modelos
 RUN mkdir -p /models
 
-# Descargar modelo Daniela (ESTO TE FALTABA 🔥)
+# Descargar modelo (Daniela)
 RUN wget -O /models/es_AR-daniela-high.onnx \
     https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/daniela/high/es_AR-daniela-high.onnx && \
     wget -O /models/es_AR-daniela-high.onnx.json \
     https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/daniela/high/es_AR-daniela-high.onnx.json
 
-# Copiar código
-COPY package*.json ./
-RUN npm install --omit=dev
-
-COPY . ./
-
+# Comando por defecto
 CMD ["node", "main.js"]

@@ -14,29 +14,25 @@ const outputMp3 = "/tmp/output.mp3";
 try {
     console.log("🔊 Generando audio con Piper...");
 
-    // 🔍 DEBUG
-    console.log("🔍 Verificando piper...");
-    try { execSync("which piper", { stdio: 'inherit' }); } catch {}
-    console.log("📂 Verificando modelos...");
-    try { execSync("ls -lah /models", { stdio: 'inherit' }); } catch {}
-
     fs.writeFileSync('/tmp/input.txt', text);
 
-    console.log("🚀 Ejecutando Piper...");
+    // ✅ FIX CUELGUE + MÁS RÁPIDO
+    const textInput = fs.readFileSync('/tmp/input.txt', 'utf-8');
 
-    // ⏱️ TIMEOUT para evitar que se quede colgado
     execSync(
-        `piper --model ${model} --output_file ${outputWav} < /tmp/input.txt`,
-        { stdio: 'inherit', timeout: 120000 } // 2 minutos máx
+        `piper --model ${model} --output_file ${outputWav} --sentence_silence 0.2`,
+        {
+            input: textInput,
+            stdio: ['pipe', 'inherit', 'inherit']
+        }
     );
-
-    console.log("✅ Piper terminó");
 
     console.log("🎵 Convirtiendo a MP3...");
 
+    // 💰 MÁS BARATO (menos calidad pero suficiente)
     execSync(
-        `ffmpeg -y -i ${outputWav} -codec:a libmp3lame -qscale:a 2 ${outputMp3}`,
-        { stdio: 'inherit', timeout: 60000 }
+        `ffmpeg -y -i ${outputWav} -codec:a libmp3lame -qscale:a 5 ${outputMp3}`,
+        { stdio: 'inherit' }
     );
 
     // 🔥 OUTPUT ÚNICO

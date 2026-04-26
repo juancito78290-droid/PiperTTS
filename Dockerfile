@@ -1,21 +1,26 @@
 FROM apify/actor-node:20
 
-# Instalar dependencias (ALPINE -> apk, no apt-get)
+# Instalar dependencias del sistema (Alpine)
 RUN apk add --no-cache \
     ffmpeg \
     wget \
     python3 \
     py3-pip \
+    py3-virtualenv \
     build-base
 
-# 🔥 IMPORTANTE: arreglar error de numpy
-RUN pip3 install --no-cache-dir "numpy<2"
+# Crear entorno virtual (CLAVE para evitar error PEP 668)
+RUN python3 -m venv /venv
 
-# Instalar piper TTS
-RUN pip3 install --no-cache-dir piper-tts
+# Activar venv e instalar dependencias
+RUN . /venv/bin/activate && \
+    pip install --no-cache-dir "numpy<2" piper-tts
 
-# Copiar archivos del actor
-COPY . ./
+# Hacer que siempre use ese entorno
+ENV PATH="/venv/bin:$PATH"
 
-# Comando de inicio
+# Copiar código
+WORKDIR /app
+COPY . .
+
 CMD ["node", "main.js"]

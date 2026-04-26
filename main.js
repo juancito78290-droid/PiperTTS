@@ -7,25 +7,22 @@ await Actor.init();
 const input = await Actor.getInput() || {};
 const text = input.text || "Hola, esta es la voz argentina Daniela funcionando correctamente";
 
-// ✅ Modelo correcto (HIGH)
+// ✅ RUTAS CORRECTAS
 const model = "/models/es_AR-daniela-high.onnx";
-
 const outputWav = "/tmp/output.wav";
 const outputMp3 = "/tmp/output.mp3";
 
 try {
     console.log("Generando audio con Piper...");
 
-    // Guardar texto en archivo
     fs.writeFileSync('/tmp/input.txt', text);
 
-    // Ejecutar Piper correctamente
-    execSync(`piper --model ${model} --output_file ${outputWav} < /tmp/input.txt`);
+    // 👇 usamos el binario correcto
+    execSync(`/usr/local/bin/piper/piper --model ${model} --output_file ${outputWav} < /tmp/input.txt`);
 
     console.log("Convirtiendo a MP3...");
     execSync(`ffmpeg -y -i ${outputWav} -codec:a libmp3lame -qscale:a 2 ${outputMp3}`);
 
-    // Subir a Apify
     await Actor.setValue('OUTPUT_MP3', fs.readFileSync(outputMp3), {
         contentType: 'audio/mpeg',
     });

@@ -7,17 +7,17 @@ RUN apk add --no-cache \
     python3 \
     py3-pip
 
-# Instalar Piper
+# Instalar Piper correctamente
 RUN wget https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz \
     && tar -xzf piper_linux_x86_64.tar.gz \
-    && mv piper /usr/local/bin/piper \
-    && chmod +x /usr/local/bin/piper \
+    && mv piper /opt/piper \
+    && ln -s /opt/piper/piper /usr/local/bin/piper \
     && rm piper_linux_x86_64.tar.gz
 
 # Crear carpeta de modelos
 RUN mkdir -p /models
 
-# ✅ RUTA CORRECTA (IMPORTANTE: incluye /high/)
+# Descargar modelo correcto (Daniela HIGH)
 RUN wget -O /models/es_AR-daniela-high.onnx \
 https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/daniela/high/es_AR-daniela-high.onnx \
 && wget -O /models/es_AR-daniela-high.onnx.json \

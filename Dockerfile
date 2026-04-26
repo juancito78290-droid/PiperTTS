@@ -1,7 +1,7 @@
-# IMPORTANTE: usar Debian (glibc), no Alpine
-FROM apify/actor-node:20-bookworm
+# Base real con Debian (glibc)
+FROM node:20-bookworm
 
-# Instalar dependencias del sistema
+# Instalar dependencias
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     wget \
@@ -12,31 +12,33 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Instalar Piper CLI (binario real)
+# Instalar Piper CLI
 RUN wget -q https://github.com/rhasspy/piper/releases/download/v1.2.0/piper_linux_x86_64.tar.gz \
     && tar -xzf piper_linux_x86_64.tar.gz \
     && mv piper /usr/local/bin/piper \
     && chmod +x /usr/local/bin/piper \
     && rm piper_linux_x86_64.tar.gz
 
-# Crear entorno virtual Python
+# Crear entorno Python
 RUN python3 -m venv /venv
 ENV PATH="/venv/bin:$PATH"
 
-# Actualizar pip
 RUN pip install --upgrade pip
 
-# Instalar dependencias Python necesarias para Piper
+# Dependencias necesarias
 RUN pip install --no-cache-dir \
     "numpy<2" \
     onnxruntime \
     piper-phonemize
 
-# Copiar proyecto
+# Carpeta de trabajo
+WORKDIR /usr/src/app
+
+# Copiar código
 COPY . ./
 
-# Instalar Node dependencies si existen
+# Instalar deps Node
 RUN npm install --omit=dev || true
 
-# Ejecutar tu main.js
+# Ejecutar actor
 CMD ["node", "main.js"]

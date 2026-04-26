@@ -1,26 +1,20 @@
 FROM apify/actor-node:20
 
-# Instalar dependencias del sistema
-RUN apt-get update && apt-get install -y \
+# Instalar dependencias (ALPINE -> apk, no apt-get)
+RUN apk add --no-cache \
     ffmpeg \
     wget \
     python3 \
-    python3-pip \
-    && rm -rf /var/lib/apt/lists/*
+    py3-pip \
+    build-base
 
 # 🔥 IMPORTANTE: arreglar error de numpy
-RUN pip install --no-cache-dir "numpy<2"
+RUN pip3 install --no-cache-dir "numpy<2"
 
-# Instalar Piper y dependencias compatibles
-RUN pip install --no-cache-dir piper-tts onnxruntime
+# Instalar piper TTS
+RUN pip3 install --no-cache-dir piper-tts
 
-# Crear directorio de trabajo
-WORKDIR /app
-
-# Copiar archivos
-COPY package*.json ./
-RUN npm install
-
+# Copiar archivos del actor
 COPY . ./
 
 # Comando de inicio

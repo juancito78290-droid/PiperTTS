@@ -5,11 +5,9 @@ import fs from 'fs';
 await Actor.init();
 
 const input = await Actor.getInput() || {};
-const text = input.text || "Hola, esta es la voz argentina Daniela funcionando correctamente";
+const text = input.text || "Hola, probando la voz Daniela correctamente";
 
-// ✅ MODELO CORRECTO
 const model = "/models/es_AR-daniela-high.onnx";
-
 const outputWav = "/tmp/output.wav";
 const outputMp3 = "/tmp/output.mp3";
 
@@ -18,9 +16,8 @@ try {
 
     fs.writeFileSync('/tmp/input.txt', text);
 
-    execSync(`piper --model ${model} --output_file ${outputWav} < /tmp/input.txt`, {
-        stdio: 'inherit'
-    });
+    // 👇 IMPORTANTE: usar ruta completa por si PATH falla
+    execSync(`/usr/local/bin/piper --model ${model} --output_file ${outputWav} < /tmp/input.txt`);
 
     console.log("Convirtiendo a MP3...");
     execSync(`ffmpeg -y -i ${outputWav} -codec:a libmp3lame -qscale:a 2 ${outputMp3}`);
@@ -35,7 +32,7 @@ try {
     console.log(url);
 
 } catch (err) {
-    console.error("❌ Error ejecutando Piper:", err.message);
+    console.error("❌ Error:", err.message);
     throw err;
 }
 

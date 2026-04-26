@@ -7,7 +7,9 @@ await Actor.init();
 const input = await Actor.getInput() || {};
 const text = input.text || "Hola, probando la voz Daniela correctamente";
 
-const model = "/models/es_AR-daniela-high.onnx";
+// 🔥 MODELO LOW (CLAVE)
+const model = "/models/es_AR-daniela-low.onnx";
+
 const outputWav = "/tmp/output.wav";
 const outputMp3 = "/tmp/output.mp3";
 
@@ -16,11 +18,11 @@ try {
 
     fs.writeFileSync('/tmp/input.txt', text);
 
-    // ✅ FIX CUELGUE + MÁS RÁPIDO
+    // ✅ FIX CUELGUE (stdin correcto)
     const textInput = fs.readFileSync('/tmp/input.txt', 'utf-8');
 
     execSync(
-        `piper --model ${model} --output_file ${outputWav} --sentence_silence 0.2`,
+        `piper --model ${model} --output_file ${outputWav} --sentence_silence 0.15`,
         {
             input: textInput,
             stdio: ['pipe', 'inherit', 'inherit']
@@ -29,13 +31,13 @@ try {
 
     console.log("🎵 Convirtiendo a MP3...");
 
-    // 💰 MÁS BARATO (menos calidad pero suficiente)
+    // 💰 MÁS BARATO
     execSync(
-        `ffmpeg -y -i ${outputWav} -codec:a libmp3lame -qscale:a 5 ${outputMp3}`,
+        `ffmpeg -y -i ${outputWav} -codec:a libmp3lame -qscale:a 6 ${outputMp3}`,
         { stdio: 'inherit' }
     );
 
-    // 🔥 OUTPUT ÚNICO
+    // 🔥 OUTPUT ÚNICO (IMPORTANTE PARA PARALELO)
     const key = `OUTPUT_MP3_${Date.now()}`;
 
     await Actor.setValue(key, fs.readFileSync(outputMp3), {

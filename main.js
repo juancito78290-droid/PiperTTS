@@ -4,51 +4,43 @@ import fs from 'fs';
 
 await Actor.init();
 
-// INPUT
 const input = await Actor.getInput() || {};
-const text = input.text || "Hola, esta es una voz argentina generada con Piper";
+const text = input.text || "Hola, este es un ejemplo con voz argentina";
 
-// Modelo argentino
-const model = "es_AR-mls_10246-low.onnx";
-const modelJson = model + ".json";
+// Archivos
+const model = "es_AR-daniela-high.onnx";
+const config = "es_AR-daniela-high.onnx.json";
 
 const outputWav = "output.wav";
 const outputMp3 = "output.mp3";
 
+// URLs reales (FUNCIONAN)
+const baseUrl = "https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/daniela/high";
+
 // Descargar modelo si no existe
 if (!fs.existsSync(model)) {
-    console.log("Descargando modelo argentino...");
-
-    execSync(`wget https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/mls_10246/low/${model}`);
-    execSync(`wget https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/mls_10246/low/${modelJson}`);
+    console.log("Descargando modelo argentino (daniela)...");
+    execSync(`wget ${baseUrl}/${model}`);
+    execSync(`wget ${baseUrl}/${config}`);
 }
 
-// Generar WAV
-console.log("Generando audio WAV...");
-execSync(`echo "${text.replace(/"/g, '\\"')}" | piper --model ${model} --output_file ${outputWav}`);
+// Generar WAV con Piper
+console.log("Generando audio...");
+execSync(`echo "${text}" | piper --model ${model} --config ${config} --output_file ${outputWav}`);
 
 // Convertir a MP3
 console.log("Convirtiendo a MP3...");
-execSync(`ffmpeg -y -i ${outputWav} -vn -ar 44100 -ac 2 -b:a 192k ${outputMp3}`);
+execSync(`ffmpeg -y -i ${outputWav} -codec:a libmp3lame -qscale:a 2 ${outputMp3}`);
 
-// Guardar en Key-Value Store
-const store = await Actor.openKeyValueStore();
-await store.setValue('audio.mp3', fs.readFileSync(outputMp3), {
+// Subir a Apify (esto genera link)
+await Actor.setValue('OUTPUT_MP3', fs.readFileSync(outputMp3), {
     contentType: 'audio/mpeg',
 });
 
-// 🔗 GENERAR LINK
-const storeId = store.id;
-const runId = Actor.getEnv().actorRunId;
+// Generar URL pública
+const url = `https://api.apify.com/v2/key-value-stores/${Actor.getEnv().defaultKeyValueStoreId}/records/OUTPUT_MP3`;
 
-const url = `https://api.apify.com/v2/key-value-stores/${storeId}/records/audio.mp3?disableRedirect=true`;
-
-console.log("LINK DEL MP3:");
+console.log("✅ MP3 listo:");
 console.log(url);
-
-// Devolver también en OUTPUT
-await Actor.setValue('OUTPUT', {
-    mp3Url: url,
-});
 
 await Actor.exit();

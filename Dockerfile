@@ -1,32 +1,25 @@
-FROM node:18-bullseye
+FROM apify/actor-node:18
 
-# Instalar dependencias reales
-RUN apt-get update && apt-get install -y \
+# Instalar dependencias
+RUN apk add --no-cache \
     wget \
     ffmpeg \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    ca-certificates
 
-# Instalar Piper limpio
-RUN rm -rf /opt/piper && mkdir -p /opt/piper
-
-RUN wget -q https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz \
+# Instalar Piper
+RUN mkdir -p /opt/piper \
+    && wget https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz \
     && tar -xzf piper_linux_x86_64.tar.gz \
     && cp -r piper/* /opt/piper/ \
     && chmod +x /opt/piper/piper \
     && rm -rf piper piper_linux_x86_64.tar.gz
 
-# Descargar modelo
+# Descargar modelo (ONNX + JSON)
 RUN mkdir -p /models \
-    && wget -q https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/mls_10246/low/es_ES-mls_10246-low.onnx -O /models/model.onnx
-
-ENV PATH="/opt/piper:$PATH"
+    && wget -O /models/model.onnx https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/roberta-medium/es_ES-roberta-medium.onnx \
+    && wget -O /models/model.onnx.json https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/roberta-medium/es_ES-roberta-medium.onnx.json
 
 WORKDIR /app
-
-COPY package*.json ./
-RUN npm install
-
 COPY . .
 
 CMD ["node", "main.js"]

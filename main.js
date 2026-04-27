@@ -32,6 +32,10 @@ if (existing) {
     console.log(url);
 
     await Actor.pushData({ audioUrl: url });
+
+    // 🔥 OUTPUT añadido
+    await Actor.setValue('OUTPUT', { audioUrl: url });
+
     await Actor.exit();
 }
 
@@ -124,6 +128,9 @@ try {
     console.log(url);
 
     await Actor.pushData({ audioUrl: url });
+
+    // 🔥 OUTPUT añadido
+    await Actor.setValue('OUTPUT', { audioUrl: url });
 
 } catch (err) {
     console.error("❌ ERROR:", err);

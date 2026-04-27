@@ -22,7 +22,7 @@ text = text
 const store = await Actor.openKeyValueStore();
 
 const hash = crypto.createHash('md5').update(text).digest('hex');
-const key = `${hash}.mp3`; // 🔥 ahora es mp3 directo
+const key = `${hash}.mp3`;
 
 const existing = await store.getValue('OUTPUT');
 
@@ -64,7 +64,9 @@ function splitText(text, maxLen = 130) {
 }
 
 try {
-    const parts = splitText(text, 130);
+    // 🔥 SOLO SPLIT SI ES NECESARIO
+    const parts = text.length < 180 ? [text] : splitText(text, 130);
+
     const wavFiles = [];
 
     for (let i = 0; i < parts.length; i++) {
@@ -73,9 +75,9 @@ try {
         execSync(
             `piper --model ${model} \
 --output_file ${wav} \
---length_scale 1.08 \
---noise_scale 0.38 \
---noise_w 0.65 \
+--length_scale 1.0 \
+--noise_scale 0.3 \
+--noise_w 0.5 \
 --sentence_silence 0.0`,
             {
                 input: parts[i],
@@ -97,13 +99,14 @@ try {
         { stdio: 'ignore' }
     );
 
+    // 🔥 MP3 MÁS RÁPIDO
     execSync(
-        `ffmpeg -y -i ${finalWav} -codec:a libmp3lame -qscale:a 6 ${finalMp3}`,
+        `ffmpeg -y -i ${finalWav} -acodec libmp3lame -b:a 96k ${finalMp3}`,
         { stdio: 'ignore' }
     );
 
     // =========================
-    // 💾 SOLO OUTPUT (sin audio_xxx)
+    // 💾 SOLO OUTPUT
     // =========================
     await store.setValue('OUTPUT', fs.readFileSync(finalMp3), {
         contentType: 'audio/mpeg',
@@ -114,7 +117,6 @@ try {
     console.log("✅ AUDIO LISTO:");
     console.log(url);
 
-    // 🔥 SOLO OUTPUT JSON
     await Actor.setValue('OUTPUT', { audioUrl: url });
 
 } catch (err) {

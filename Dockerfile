@@ -1,38 +1,38 @@
 FROM node:18-bullseye
 
-# Dependencias necesarias
+# Evita prompts interactivos
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Solo lo necesario (más rápido y menos errores)
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     wget \
-    unzip \
-    libstdc++6 \
-    libsndfile1 \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Instalar Piper COMPLETO
-WORKDIR /opt
+# Instalar PIPER bien (binario correcto)
+WORKDIR /tmp
 
-RUN wget https://github.com/rhasspy/piper/releases/download/v1.2.0/piper_linux_x64.tar.gz \
+RUN wget -q https://github.com/rhasspy/piper/releases/download/v1.2.0/piper_linux_x64.tar.gz \
     && tar -xzf piper_linux_x64.tar.gz \
-    && mv piper /opt/piper
-
-# Añadir al PATH
-ENV PATH="/opt/piper:${PATH}"
+    && mv piper/piper /usr/local/bin/piper \
+    && chmod +x /usr/local/bin/piper \
+    && rm -rf piper*
 
 # Modelos
 RUN mkdir -p /models
 
-RUN wget -O /models/model.onnx \
+RUN wget -q -O /models/model.onnx \
     https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/mls_10246/low/es_ES-mls_10246-low.onnx
 
-RUN wget -O /models/model.onnx.json \
+RUN wget -q -O /models/model.onnx.json \
     https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/mls_10246/low/es_ES-mls_10246-low.onnx.json
 
 # App
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
+RUN npm install --omit=dev
 
 COPY . .
 

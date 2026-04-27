@@ -1,5 +1,5 @@
 const { Actor } = require('apify');
-const { spawnSync } = require('child_process');
+const { spawn } = require('child_process');
 const ffmpegPath = require('ffmpeg-static');
 const fs   = require('fs');
 const path = require('path');
@@ -7,6 +7,67 @@ const os   = require('os');
 
 const PIPER_BIN  = '/usr/local/bin/piper';
 const MODEL_PATH = '/usr/local/piper/voices/es_ES-mls_10246-low.onnx';
+
+// Ejecuta Piper de forma asíncrona y espera a que termine
+// Ignora el exit code — solo importa si el WAV existe al final
+function runPiper(wavFile, text, noiseScale, noiseW, lengthScale) {
+    return new Promise((resolve, reject) => {
+        const proc = spawn(PIPER_BIN, [
+            '--model',        MODEL_PATH,
+            '--output_file',  wavFile,
+            '--noise_scale',  String(noiseScale),
+            '--noise_w',      String(noiseW),
+            '--length_scale', String(lengthScale),
+        ]);
+
+        let stderrLog = '';
+        proc.stderr.on('data', (data) => {
+            stderrLog += data.toString();
+        });
+
+        // Error de sistema (proceso no pudo lanzarse)
+        proc.on('error', (err) => reject(err));
+
+        proc.on('close', () => {
+            // No evaluamos el exit code de Piper — escribe logs en stderr
+            // y puede terminar con señal (null). Solo importa el archivo WAV.
+            console.log(`   Piper stderr: ${stderrLog.trim()}`);
+            resolve();
+        });
+
+        // Enviar texto por stdin y cerrar
+        proc.stdin.write(text, 'utf8');
+        proc.stdin.end();
+    });
+}
+
+// Ejecuta ffmpeg de forma asíncrona
+function runFfmpeg(wavFile, mp3File) {
+    return new Promise((resolve, reject) => {
+        const proc = spawn(ffmpegPath, [
+            '-y',
+            '-i',        wavFile,
+            '-codec:a',  'libmp3lame',
+            '-qscale:a', '2',
+            '-ar',       '22050',
+            mp3File,
+        ]);
+
+        let stderrLog = '';
+        proc.stderr.on('data', (data) => {
+            stderrLog += data.toString();
+        });
+
+        proc.on('error', (err) => reject(err));
+
+        proc.on('close', (code) => {
+            if (code !== 0) {
+                return reject(new Error(`ffmpeg falló (código ${code}): ${stderrLog.trim()}`));
+            }
+            resolve();
+        });
+    });
+}
 
 Actor.main(async () => {
 
@@ -35,6 +96,8 @@ Actor.main(async () => {
         throw new Error('El campo "text" es obligatorio en el input.');
     }
 
+    const lengthScale = (1.0 / speakingRate).toFixed(3);
+
     console.log(`✅  Piper  : ${PIPER_BIN}`);
     console.log(`✅  Modelo : ${MODEL_PATH}`);
     console.log(`✅  ffmpeg : ${ffmpegPath}`);
@@ -47,69 +110,32 @@ Actor.main(async () => {
 
     try {
 
-        // ── 1. Piper escribe WAV a stdout, lo capturamos y guardamos ──────────
-        console.log('🔊  Generando WAV via stdout...');
+        // 1. Generar WAV con Piper (async, stdin → output_file)
+        console.log('🔊  Generando WAV...');
+        await runPiper(wavFile, text, noiseScale, noiseW, lengthScale);
 
-        const piperResult = spawnSync(PIPER_BIN, [
-            '--model',        MODEL_PATH,
-            '--output-raw',               // WAV crudo a stdout
-            '--noise_scale',  String(noiseScale),
-            '--noise_w',      String(noiseW),
-            '--length_scale', String((1.0 / speakingRate).toFixed(3)),
-        ], {
-            input:    Buffer.from(text, 'utf8'),
-            timeout:  120_000,
-            encoding: 'buffer',
-            maxBuffer: 100 * 1024 * 1024, // 100 MB por si el audio es largo
-        });
-
-        if (piperResult.error) throw piperResult.error;
-
-        // stdout contiene el audio RAW (PCM), stderr contiene logs informativos
-        const rawAudio = piperResult.stdout;
-
-        if (!rawAudio || rawAudio.length < 100) {
-            const errMsg = piperResult.stderr ? piperResult.stderr.toString().trim() : 'sin stderr';
-            throw new Error(`Piper no generó audio. stderr: ${errMsg}`);
+        // Esperar hasta 3 segundos a que el SO termine de escribir el archivo
+        for (let i = 0; i < 6; i++) {
+            if (fs.existsSync(wavFile) && fs.statSync(wavFile).size > 100) break;
+            await new Promise(r => setTimeout(r, 500));
         }
 
-        console.log(`✅  Audio RAW: ${(rawAudio.length / 1024).toFixed(1)} KB`);
-
-        // ── 2. Convertir PCM RAW → MP3 con ffmpeg ────────────────────────────
-        // El modelo mls_10246-low usa 16000 Hz, mono, 16-bit signed little-endian
-        console.log('🔄  Convirtiendo RAW → MP3...');
-
-        // Guardar el raw temporalmente para pasarlo a ffmpeg
-        fs.writeFileSync(wavFile, rawAudio);
-
-        const ffmpegResult = spawnSync(ffmpegPath, [
-            '-y',
-            '-f',        's16le',    // formato PCM signed 16-bit little-endian
-            '-ar',       '16000',    // sample rate del modelo low = 16000 Hz
-            '-ac',       '1',        // mono
-            '-i',        wavFile,    // input PCM
-            '-codec:a',  'libmp3lame',
-            '-qscale:a', '2',        // VBR alta calidad
-            '-ar',       '22050',    // upsample a 22050 Hz para mejor compatibilidad
-            mp3File,
-        ], {
-            timeout:  60_000,
-            encoding: 'buffer',
-        });
-
-        if (ffmpegResult.error) throw ffmpegResult.error;
-        if (ffmpegResult.status !== 0) {
-            const errMsg = ffmpegResult.stderr ? ffmpegResult.stderr.toString().trim() : 'sin stderr';
-            throw new Error(`ffmpeg falló con código ${ffmpegResult.status}: ${errMsg}`);
+        if (!fs.existsSync(wavFile) || fs.statSync(wavFile).size < 100) {
+            throw new Error('Piper terminó pero no generó el archivo WAV.');
         }
+        console.log(`✅  WAV: ${(fs.statSync(wavFile).size / 1024).toFixed(1)} KB`);
+
+        // 2. Convertir WAV → MP3
+        console.log('🔄  Convirtiendo a MP3...');
+        await runFfmpeg(wavFile, mp3File);
 
         if (!fs.existsSync(mp3File) || fs.statSync(mp3File).size < 100) {
-            throw new Error('ffmpeg no generó MP3 o está vacío.');
+            throw new Error('ffmpeg no generó el MP3.');
         }
         const mp3Size = fs.statSync(mp3File).size;
         console.log(`✅  MP3: ${(mp3Size / 1024).toFixed(1)} KB`);
 
-        // ── 3. Subir MP3 al Key-Value Store ──────────────────────────────────
+        // 3. Subir al Key-Value Store
         const kvStore   = await Actor.openKeyValueStore();
         const storeId   = kvStore.id || 'default';
         const recordKey = `${outputKey}.mp3`;
@@ -119,10 +145,10 @@ Actor.main(async () => {
         });
         console.log(`📦  KV Store → "${recordKey}" (storeId: ${storeId})`);
 
-        // ── 4. URL pública ────────────────────────────────────────────────────
+        // 4. URL pública
         const mp3Url = `https://api.apify.com/v2/key-value-stores/${storeId}/records/${recordKey}`;
 
-        // ── 5. Output en Dataset ──────────────────────────────────────────────
+        // 5. Output en Dataset
         await Actor.pushData({
             success      : true,
             mp3Url,

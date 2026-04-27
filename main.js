@@ -40,7 +40,7 @@ Actor.main(async () => {
         throw new Error(`Modelo no encontrado: ${MODEL_PATH}`);
     }
 
-    console.log(`✅  ffmpeg-static: ${ffmpegPath}`);
+    console.log(`✅  ffmpeg: ${ffmpegPath}`);
     console.log('🎙️  Piper TTS — es_ES mls_10246-low');
     console.log(`   Texto (${text.length} chars): ${text.substring(0, 80)}${text.length > 80 ? '…' : ''}`);
 
@@ -66,7 +66,7 @@ Actor.main(async () => {
         }
         console.log(`✅  WAV: ${(fs.statSync(wavFile).size / 1024).toFixed(1)} KB`);
 
-        // 2. Convertir WAV → MP3 con ffmpeg-static
+        // 2. Convertir WAV → MP3
         console.log('🔄  Convirtiendo a MP3...');
         run(ffmpegPath, [
             '-y',
@@ -83,7 +83,7 @@ Actor.main(async () => {
         const mp3Size = fs.statSync(mp3File).size;
         console.log(`✅  MP3: ${(mp3Size / 1024).toFixed(1)} KB`);
 
-        // 3. Subir MP3 al Key-Value Store
+        // 3. Subir al Key-Value Store
         const kvStore   = await Actor.openKeyValueStore();
         const storeId   = kvStore.id || 'default';
         const recordKey = `${outputKey}.mp3`;

@@ -5,43 +5,44 @@ import fs from 'fs';
 await Actor.init();
 
 const input = await Actor.getInput() || {};
-const text = input.text || "Hola, probando la voz MLS correctamente";
+const text = input.text || "Hola, probando la voz MLS optimizada";
 
 const model = "/models/es_ES-mls_10246-low.onnx";
 const outputWav = "/tmp/output.wav";
 const outputMp3 = "/tmp/output.mp3";
 
 try {
-    console.log("🔊 Generando audio con Piper...");
+    console.log("🔊 Generando audio con Piper (optimizado)...");
 
-    // Guardar texto
-    fs.writeFileSync('/tmp/input.txt', text);
+    // 🔥 TEXTO DIRECTO (más rápido, sin escribir archivo)
+    const cleanText = text
+        .replace(/\n/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
 
-    // Leer texto (evita freeze)
-    const textInput = fs.readFileSync('/tmp/input.txt', 'utf-8');
-
-    // 🔥 Piper
     execSync(
         `piper --model ${model} \
         --output_file ${outputWav} \
-        --length_scale 0.95 \
-        --noise_scale 0.6 \
-        --noise_w 0.7 \
-        --sentence_silence 0.25`,
+        --length_scale 1.1 \
+        --noise_scale 0.35 \
+        --noise_w 0.6 \
+        --sentence_silence 0.4`,
         {
-            input: textInput,
+            input: cleanText,
             stdio: ['pipe', 'inherit', 'inherit']
         }
     );
 
-    console.log("🎵 Convirtiendo a MP3...");
+    console.log("🎵 Mejorando audio + convirtiendo a MP3...");
 
+    // 🔥 POST-PROCESADO + COMPRESIÓN MÁS RÁPIDA
     execSync(
-        `ffmpeg -y -i ${outputWav} -codec:a libmp3lame -qscale:a 2 ${outputMp3}`,
+        `ffmpeg -y -i ${outputWav} \
+        -af "dynaudnorm,volume=1.2" \
+        -codec:a libmp3lame -qscale:a 5 ${outputMp3}`,
         { stdio: 'inherit' }
     );
 
-    // 🔥 OUTPUT ÚNICO
     const key = `OUTPUT_MP3_${Date.now()}`;
 
     await Actor.setValue(key, fs.readFileSync(outputMp3), {

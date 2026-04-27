@@ -2,7 +2,7 @@ FROM apify/actor-node:18
 
 USER root
 
-# Alpine usa apk, NO apt-get
+# Dependencias sistema (Alpine)
 RUN apk update && apk add --no-cache \
     ffmpeg \
     python3 \
@@ -16,13 +16,21 @@ RUN git clone https://github.com/rhasspy/piper /piper
 
 WORKDIR /piper
 
-# Instalar dependencias de Piper
-RUN pip3 install -r requirements.txt
+# Crear entorno virtual (evita error PEP 668)
+RUN python3 -m venv /venv
 
+# Instalar dependencias Python
+RUN /venv/bin/pip install --upgrade pip setuptools wheel
+RUN /venv/bin/pip install -r requirements.txt
+
+# Activar venv global
+ENV PATH="/venv/bin:$PATH"
+
+# Volver al actor
 WORKDIR /usr/src/app
 
 COPY . ./
 
-RUN npm install
+RUN npm install --omit=dev
 
 CMD ["node", "main.js"]

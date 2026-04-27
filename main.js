@@ -9,13 +9,11 @@ const MP3_PATH = "/tmp/output.mp3";
 
 (async () => {
     try {
-        await Apify.init();
-
         console.log("🧠 Generando audio con Piper...");
 
         execSync(`
             echo "${text.replace(/"/g, '\\"')}" | \
-            piper \
+            /usr/local/bin/piper \
             --model /opt/models/model.onnx \
             --output_file ${WAV_PATH}
         `, { stdio: "inherit" });
@@ -37,15 +35,10 @@ const MP3_PATH = "/tmp/output.mp3";
 
         console.log("✅ MP3 URL:", url);
 
-        // 🔥 CIERRE CORRECTO DEL ACTOR
-        await Apify.exit();
+        await Apify.Actor.exit();
 
     } catch (err) {
         console.error("❌ ERROR:", err.message);
-
-        // 🔥 también cerrar en error
-        await Apify.exit();
-
-        process.exit(1);
+        await Apify.Actor.exit();
     }
 })();

@@ -32,7 +32,7 @@ if (existing) {
     console.log("♻️ CACHE HIT");
     console.log(url);
 
-    await Actor.setValue('OUTPUT', { audioUrl: url });
+    // ❌ ELIMINADO: Actor.setValue('OUTPUT', ...)
     await Actor.exit();
 }
 
@@ -107,7 +107,7 @@ try {
     );
 
     // =========================
-    // 💾 GUARDAR COMO OUTPUT.mp3
+    // 💾 SOLO OUTPUT.mp3 (ÚNICO RESULTADO)
     // =========================
     await store.setValue('OUTPUT.mp3', fs.readFileSync(finalMp3), {
         contentType: 'audio/mpeg',
@@ -118,8 +118,7 @@ try {
     console.log("✅ AUDIO LISTO:");
     console.log(url);
 
-    // 🔥 OUTPUT FINAL
-    await Actor.setValue('OUTPUT', { audioUrl: url });
+    // ❌ ELIMINADO: Actor.setValue('OUTPUT', ...)
 
 } catch (err) {
     console.error("❌ ERROR:", err);

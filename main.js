@@ -1,34 +1,41 @@
-FROM apify/actor-node:18
+import { Actor } from 'apify';
+import { execSync } from 'child_process';
+import fs from 'fs';
 
-USER root
+await Actor.init();
 
-# Instalar dependencias
-RUN apk update && apk add --no-cache \
-    ffmpeg \
-    python3 \
-    py3-pip \
-    git \
-    wget \
-    bash
+const input = await Actor.getInput();
+const text = input?.text || "Hola mundo desde Piper";
 
-# Clonar Piper
-RUN git clone https://github.com/rhasspy/piper /piper
+const wavPath = '/tmp/output.wav';
+const mp3Path = '/tmp/output.mp3';
 
-WORKDIR /piper
+// ⚠️ Usa un modelo real descargado
+const modelPath = '/piper/es_ES-mls_10246-low.onnx';
 
-# Crear entorno virtual (evita error PEP 668)
-RUN python3 -m venv /venv
-ENV PATH="/venv/bin:$PATH"
+// 1. Generar WAV con Piper
+execSync(`
+echo "${text}" | /piper/piper \
+  --model ${modelPath} \
+  --output_file ${wavPath}
+`);
 
-# Instalar dependencias básicas necesarias
-RUN pip install --upgrade pip setuptools wheel numpy
+// 2. Convertir a MP3
+execSync(`
+ffmpeg -y -i ${wavPath} -codec:a libmp3lame -qscale:a 2 ${mp3Path}
+`);
 
-# Volver al actor
-WORKDIR /usr/src/app
+// 3. Subir a key-value store
+const store = await Actor.openKeyValueStore();
+await store.setValue('output.mp3', fs.readFileSync(mp3Path), {
+    contentType: 'audio/mpeg',
+});
 
-# Copiar archivos
-COPY . ./
+// 4. URL pública
+const url = store.getPublicUrl('output.mp3');
 
-RUN npm install
+await Actor.setValue('OUTPUT', {
+    url,
+});
 
-CMD ["node", "main.js"]
+await Actor.exit();

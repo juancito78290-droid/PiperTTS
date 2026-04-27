@@ -1,65 +1,48 @@
-import { execSync } from "child_process";
-import fs from "fs";
-import { randomUUID } from "crypto";
-import { Actor } from "apify";
+import { Actor } from 'apify';
+import { execSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 
 await Actor.init();
 
-// INPUT
 const input = await Actor.getInput();
-const text = input?.text || "Hola, esto es una prueba con Piper.";
+const text = input?.text || "Hola mundo";
 
-// IDs únicos
-const id = randomUUID();
+// ID único por ejecución
+const id = Date.now();
+const wavFile = `/tmp/output_${id}.wav`;
+const mp3File = `/tmp/output_${id}.mp3`;
 
-// Rutas
-const wavPath = `/tmp/${id}.wav`;
-const mp3Path = `/tmp/${id}.mp3`;
-
-console.log("🧠 Generando audio con Piper...");
+// Modelo (ajusta si usas otro)
+const model = "/piper/models/es_ES-mls_10246-low.onnx";
 
 // Generar WAV con Piper
-execSync(`echo "${text.replace(/"/g, '\\"')}" | piper \
---model /models/model.onnx \
---config /models/model.onnx.json \
---output_file ${wavPath}
+execSync(`
+echo "${text}" | python3 /piper/piper.py \
+  --model ${model} \
+  --output_file ${wavFile}
 `);
 
-// Validar WAV
-if (!fs.existsSync(wavPath)) {
-    throw new Error("❌ Piper no generó el WAV");
-}
-
-console.log("🎧 Convirtiendo a MP3...");
-
 // Convertir a MP3
-execSync(`ffmpeg -y -i ${wavPath} -codec:a libmp3lame -qscale:a 2 ${mp3Path}`);
+execSync(`ffmpeg -y -i ${wavFile} ${mp3File}`);
 
-// Validar MP3
-if (!fs.existsSync(mp3Path)) {
-    throw new Error("❌ FFmpeg no generó el MP3");
-}
+// Leer MP3
+const buffer = fs.readFileSync(mp3File);
 
-console.log("☁️ Subiendo a Apify KV Store...");
-
-// Subir a Key-Value Store (archivo público)
+// Guardar en Key-Value Store
 const store = await Actor.openKeyValueStore();
+const key = `audio_${id}.mp3`;
 
-const fileName = `${id}.mp3`;
-
-await store.setValue(fileName, fs.readFileSync(mp3Path), {
-    contentType: "audio/mpeg",
+await store.setValue(key, buffer, {
+    contentType: 'audio/mpeg'
 });
 
 // URL pública
-const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/${fileName}`;
+const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/${key}?disableRedirect=true`;
 
-console.log("✅ URL generada:", url);
+console.log("MP3 URL:", url);
 
-// OUTPUT
-await Actor.setOutput({
-    url,
-    fileName,
-});
+// Output final
+await Actor.setValue('OUTPUT', { url });
 
 await Actor.exit();

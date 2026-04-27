@@ -2,42 +2,45 @@ FROM apify/actor-node:18
 
 USER root
 
-# Dependencias mínimas + ffmpeg
-RUN apk add --no-cache \
+# 🔥 Dependencias necesarias (evita errores de runtime)
+RUN apk update && apk add --no-cache \
     ffmpeg \
     bash \
     wget \
     ca-certificates \
     libstdc++ \
+    curl \
     unzip
 
-# Carpeta de trabajo
+# 🔥 Carpeta de trabajo
 WORKDIR /app
 
-# Descargar Piper (versión correcta que SÍ existe)
+# 🔥 Descargar Piper (VERSIÓN ESTABLE + fallback)
 RUN mkdir -p /opt/piper && \
-    wget -O /opt/piper/piper.tar.gz \
-    https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz && \
-    tar -xzf /opt/piper/piper.tar.gz -C /opt/piper --strip-components=1 && \
+    wget -qO /opt/piper/piper.tar.gz https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz || \
+    wget -qO /opt/piper/piper.tar.gz https://github.com/rhasspy/piper/releases/download/v1.2.0/piper_linux_x86_64.tar.gz && \
+    tar -xzf /opt/piper/piper.tar.gz -C /opt/piper && \
     chmod +x /opt/piper/piper && \
     rm /opt/piper/piper.tar.gz
 
-# Descargar modelo español (ligero)
+# 🔥 Descargar modelo (con fallback REAL)
 RUN mkdir -p /opt/models && \
-    wget -O /opt/models/es.onnx \
-    https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/amy/low/es_ES-amy-low.onnx && \
-    wget -O /opt/models/es.json \
-    https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/amy/low/es_ES-amy-low.onnx.json
+    (wget -qO /opt/models/model.onnx https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/mls_10246/low/es_ES-mls_10246-low.onnx || \
+     wget -qO /opt/models/model.onnx https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/amy/low/es_ES-amy-low.onnx) && \
+    (wget -qO /opt/models/model.json https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/mls_10246/low/es_ES-mls_10246-low.onnx.json || \
+     wget -qO /opt/models/model.json https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/amy/low/es_ES-amy-low.onnx.json)
 
-# Copiar app
+# 🔥 Variables (evita rutas rotas)
+ENV PIPER_BIN=/opt/piper/piper
+ENV MODEL_PATH=/opt/models/model.onnx
+
+# 🔥 Copiar código
 COPY package*.json ./
 RUN npm install --omit=dev
 
-COPY . .
+COPY . ./
 
-# Variables
-ENV PIPER_BIN=/opt/piper/piper
-ENV MODEL_PATH=/opt/models/es.onnx
+# 🔥 Permisos
+RUN chmod +x /opt/piper/piper
 
-# Ejecutar actor
 CMD ["node", "main.js"]

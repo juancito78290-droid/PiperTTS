@@ -1,58 +1,40 @@
-import { Actor } from 'apify';
-import fs from 'fs';
-import { execSync } from 'child_process';
+import { exec } from "child_process";
+import fs from "fs";
+import path from "path";
 
-await Actor.init();
+const TEXT = process.env.TEXT || "Hola, esto es una prueba de voz con Piper";
+const OUTPUT = "output.wav";
 
-const input = await Actor.getInput();
+function runPiper(text) {
+    return new Promise((resolve, reject) => {
+        const command = `echo "${text}" | piper --model /opt/models/model.onnx --output_file ${OUTPUT}`;
 
-const text = input.text || "Hola, esto es una prueba";
-const outputName = `audio_${Date.now()}`;
+        exec(command, (error, stdout, stderr) => {
+            if (error) {
+                console.error("❌ Error ejecutando Piper:", error);
+                reject(error);
+                return;
+            }
 
-const wavPath = `/tmp/${outputName}.wav`;
-const mp3Path = `/tmp/${outputName}.mp3`;
-
-try {
-    // =========================
-    // GENERAR WAV CON PIPER
-    // =========================
-    execSync(`echo "${text}" | piper \
-        --model /opt/models/model.onnx \
-        --output_file ${wavPath}`);
-
-    // =========================
-    // CONVERTIR A MP3
-    // =========================
-    execSync(`ffmpeg -y -i ${wavPath} -codec:a libmp3lame -qscale:a 2 ${mp3Path}`);
-
-    // =========================
-    // GUARDAR EN KEY-VALUE STORE
-    // =========================
-    const store = await Actor.openKeyValueStore();
-
-    const fileBuffer = fs.readFileSync(mp3Path);
-
-    await store.setValue(`${outputName}.mp3`, fileBuffer, {
-        contentType: 'audio/mpeg'
-    });
-
-    const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/${outputName}.mp3`;
-
-    // =========================
-    // OUTPUT FINAL
-    // =========================
-    await Actor.pushData({
-        status: "success",
-        url: url
-    });
-
-} catch (error) {
-    console.error(error);
-
-    await Actor.pushData({
-        status: "error",
-        error: error.message
+            console.log("✅ Audio generado:", OUTPUT);
+            resolve();
+        });
     });
 }
 
-await Actor.exit();
+async function main() {
+    try {
+        await runPiper(TEXT);
+
+        if (fs.existsSync(OUTPUT)) {
+            console.log("📁 Archivo listo para usar");
+        } else {
+            console.log("❌ No se generó el audio");
+        }
+
+    } catch (err) {
+        console.error("❌ Fallo total:", err);
+    }
+}
+
+main();

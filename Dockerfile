@@ -1,16 +1,14 @@
-FROM node:18-bullseye
+FROM apify/actor-node:18
 
-# Evita prompts interactivos
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Solo lo necesario (más rápido y menos errores)
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     wget \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Instalar PIPER bien (binario correcto)
+# Instalar Piper
 WORKDIR /tmp
 
 RUN wget -q https://github.com/rhasspy/piper/releases/download/v1.2.0/piper_linux_x64.tar.gz \
@@ -29,7 +27,7 @@ RUN wget -q -O /models/model.onnx.json \
     https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/mls_10246/low/es_ES-mls_10246-low.onnx.json
 
 # App
-WORKDIR /app
+WORKDIR /usr/src/app
 
 COPY package*.json ./
 RUN npm install --omit=dev

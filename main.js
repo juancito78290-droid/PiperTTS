@@ -4,37 +4,38 @@ import { Actor } from "apify";
 
 await Actor.init();
 
-const input = await Actor.getInput() || {};
-const TEXT = (input.text || "Hola desde Piper").replace(/"/g, '\\"');
+// Texto de entrada
+const input = await Actor.getInput();
+const text = input?.text || "Hola, esto es una prueba de voz con Piper";
 
-const WAV = "/tmp/output.wav";
-const MP3 = "/tmp/output.mp3";
-const MODEL = "/models/model.onnx";
+// Archivos
+const wavPath = "/tmp/output.wav";
+const mp3Path = "/tmp/output.mp3";
 
-// Generar WAV
+// 1. Generar WAV con Piper
 execSync(
-    `echo "${TEXT}" | /opt/piper/piper --model ${MODEL} --output_file ${WAV}`,
-    { stdio: "inherit" }
+  `echo "${text}" | /opt/piper/piper --model /models/model.onnx --output_file ${wavPath}`
 );
 
-// Convertir a MP3
+// 2. Convertir a MP3 con ffmpeg
 execSync(
-    `ffmpeg -y -i ${WAV} -codec:a libmp3lame -b:a 128k ${MP3}`,
-    { stdio: "inherit" }
+  `ffmpeg -y -i ${wavPath} -codec:a libmp3lame -qscale:a 2 ${mp3Path}`
 );
 
-// Subir a KV Store
+// 3. Subir a Key-Value Store
 const store = await Actor.openKeyValueStore();
-const key = `audio-${Date.now()}.mp3`;
+const fileBuffer = fs.readFileSync(mp3Path);
 
-await store.setValue(key, fs.readFileSync(MP3), {
-    contentType: "audio/mpeg",
+await store.setValue("output.mp3", fileBuffer, {
+  contentType: "audio/mpeg",
 });
 
-const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/${key}`;
+// 4. URL limpia
+const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/output.mp3?disableRedirect=true`;
 
-await Actor.setOutput({ url });
+console.log("URL:", url);
 
-console.log("✅ URL:", url);
+// Output final
+await Actor.setValue("OUTPUT", { url });
 
 await Actor.exit();

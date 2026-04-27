@@ -35,7 +35,6 @@ const MP3_PATH = "/tmp/output.mp3";
 
         console.log("✅ MP3 URL:", url);
 
-        // ✅ IMPORTANTE: cerrar actor correctamente
         await Apify.exit();
 
     } catch (err) {

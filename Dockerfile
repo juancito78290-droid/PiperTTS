@@ -1,41 +1,34 @@
 FROM apify/actor-node:18
 
-# Instalar dependencias necesarias
-RUN apt-get update && apt-get install -y \
+# Instalar dependencias correctamente en Alpine
+RUN apk add --no-cache \
     ffmpeg \
     wget \
     tar \
-    libstdc++6 \
-    libgcc-s1 \
-    libespeak-ng1 \
-    espeak-ng-data \
-    && rm -rf /var/lib/apt/lists/*
-
-# Crear carpeta para piper
-WORKDIR /opt/piper
+    libstdc++ \
+    libgcc \
+    espeak-ng \
+    espeak-ng-data
 
 # Descargar Piper
-RUN wget https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz -O piper.tar.gz \
-    && tar -xzf piper.tar.gz \
-    && chmod +x piper/piper
-
-# Agregar al PATH
-ENV PATH="/opt/piper/piper:${PATH}"
+WORKDIR /opt/piper
+RUN wget https://github.com/rhasspy/piper/releases/download/v1.2.0/piper_linux_x86_64.tar.gz \
+    && tar -xzf piper_linux_x86_64.tar.gz \
+    && cp piper/piper /usr/local/bin/piper \
+    && chmod +x /usr/local/bin/piper
 
 # Crear carpeta de modelos
 RUN mkdir -p /opt/models
 
-# Copiar modelo (asegúrate de que exista en tu proyecto)
+# Copiar modelo (asegúrate que existe en tu repo)
 COPY model.onnx /opt/models/model.onnx
 
 # Volver al app
 WORKDIR /app
 
-# Copiar código
-COPY . .
-
-# Instalar dependencias node
+COPY package*.json ./
 RUN npm install
 
-# Ejecutar
+COPY . .
+
 CMD ["node", "main.js"]

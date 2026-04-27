@@ -1,39 +1,42 @@
-FROM node:18-bullseye
+FROM apify/actor-node:18
 
-# 🔥 Evita prompts interactivos
-ENV DEBIAN_FRONTEND=noninteractive
+USER root
 
-# Dependencias
-RUN apt-get update && apt-get install -y \
+# 🔥 Instalar dependencias necesarias (incluye espeak-ng)
+RUN apk update && apk add --no-cache \
     ffmpeg \
+    bash \
     wget \
     ca-certificates \
-    libstdc++6 \
-    && rm -rf /var/lib/apt/lists/*
+    libstdc++ \
+    espeak-ng
+
+# 🔥 Instalar Piper (versión estable correcta)
+RUN mkdir -p /opt/piper && \
+    wget -O /opt/piper/piper.tar.gz \
+    https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz && \
+    tar -xzf /opt/piper/piper.tar.gz -C /opt/piper && \
+    mv /opt/piper/piper /usr/local/bin/piper && \
+    chmod +x /usr/local/bin/piper && \
+    rm -rf /opt/piper
+
+# 🔥 Verificación (evita futuros errores silenciosos)
+RUN which piper && piper --help
+
+# 🔥 Descargar modelo válido (URL CORRECTA)
+RUN mkdir -p /opt/models && \
+    wget -O /opt/models/model.onnx \
+    https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/amy/low/es_ES-amy-low.onnx?download=true && \
+    wget -O /opt/models/model.json \
+    https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/amy/low/es_ES-amy-low.onnx.json?download=true
 
 WORKDIR /app
 
-# 🔥 Instalar Piper (compatible con glibc)
-RUN mkdir -p /opt/piper && \
-    wget -qO /opt/piper/piper.tar.gz https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz && \
-    tar -xzf /opt/piper/piper.tar.gz -C /opt/piper && \
-    find /opt/piper -type f -name "piper" -exec chmod +x {} \; && \
-    find /opt/piper -type f -name "piper" -exec cp {} /usr/local/bin/piper \; && \
-    chmod +x /usr/local/bin/piper && \
-    rm /opt/piper/piper.tar.gz
-
-# 🔥 Modelos (con fallback)
-RUN mkdir -p /opt/models && \
-    (wget -qO /opt/models/model.onnx https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/mls_10246/low/es_ES-mls_10246-low.onnx || \
-     wget -qO /opt/models/model.onnx https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/amy/low/es_ES-amy-low.onnx) && \
-    (wget -qO /opt/models/model.json https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/mls_10246/low/es_ES-mls_10246-low.onnx.json || \
-     wget -qO /opt/models/model.json https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/amy/low/es_ES-amy-low.onnx.json)
-
-ENV MODEL_PATH=/opt/models/model.onnx
-
 COPY package*.json ./
-RUN npm install --omit=dev
+RUN npm install
 
 COPY . .
+
+USER node
 
 CMD ["node", "main.js"]

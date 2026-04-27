@@ -1,43 +1,42 @@
 FROM apify/actor-node:18
 
-USER root
-
-# Dependencias (ALPINE)
-RUN apk add --no-cache \
+# =========================
+# DEPENDENCIAS
+# =========================
+RUN apt-get update && apt-get install -y \
     ffmpeg \
     wget \
-    tar \
-    libstdc++ \
-    libgcc \
-    espeak-ng
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-# Descargar Piper
+# =========================
+# INSTALAR PIPER
+# =========================
 WORKDIR /opt
 
 RUN wget https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz \
     && tar -xzf piper_linux_x86_64.tar.gz \
-    && rm piper_linux_x86_64.tar.gz
+    && mv piper /opt/piper
 
-# 🔥 MOVER BINARIO Y LIBS CORRECTAMENTE
-RUN find . -name "piper" -type f -exec cp {} /usr/local/bin/piper \; \
-    && chmod +x /usr/local/bin/piper
+RUN ln -s /opt/piper/piper /usr/local/bin/piper
 
-# Copiar TODAS las librerías necesarias
-RUN find . -name "*.so*" -exec cp {} /usr/local/lib/ \;
+ENV LD_LIBRARY_PATH=/opt/piper
 
-# Asegurar libs
-ENV LD_LIBRARY_PATH=/usr/local/lib
-
-# Modelos
+# =========================
+# MODELO MLS 10246 (LOW)
+# =========================
 WORKDIR /opt/models
 
-RUN wget https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/medium/es_ES-medium.onnx -O model.onnx
+RUN wget https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/mls_10246/low/model.onnx -O model.onnx \
+ && wget https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/mls_10246/low/config.json -O model.onnx.json
 
-# App
+# =========================
+# APP
+# =========================
 WORKDIR /usr/src/app
 
 COPY package*.json ./
-RUN npm install --omit=dev
+RUN npm install
 
 COPY . .
 

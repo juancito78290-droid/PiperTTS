@@ -1,31 +1,21 @@
-FROM node:18-slim
+FROM apify/actor-node:18
 
-# 🔥 Instalar dependencias
-RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+# Instalar ffmpeg + piper
+RUN apt-get update && apt-get install -y ffmpeg wget
 
-# 🔥 Instalar Piper
-RUN curl -L https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz \
-    | tar -xz -C /usr/local/bin --strip-components=1
+# Instalar piper
+RUN wget https://github.com/rhasspy/piper/releases/download/v1.2.0/piper_amd64.tar.gz \
+ && tar -xzf piper_amd64.tar.gz \
+ && mv piper /usr/local/bin/piper
 
-# 🔥 Crear carpeta modelos
-WORKDIR /models
+# Crear carpeta modelos
+RUN mkdir -p /models
 
-# 🔥 Descargar modelo MLS 10246 LOW
-RUN curl -L -o es_ES-mls_10246-low.onnx \
+# Descargar modelo MLS10246
+RUN wget -O /models/es_ES-mls_10246-low.onnx \
 https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/mls_10246/low/es_ES-mls_10246-low.onnx
 
-RUN curl -L -o es_ES-mls_10246-low.onnx.json \
-https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/mls_10246/low/es_ES-mls_10246-low.onnx.json
-
-# 🔥 App
 WORKDIR /app
-
-COPY package*.json ./
-RUN npm install --omit=dev
-
-COPY . .
+COPY . . 
 
 CMD ["node", "main.js"]

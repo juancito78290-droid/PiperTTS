@@ -1,73 +1,45 @@
-import { Actor } from 'apify';
-import { execFileSync } from 'child_process';
-import fs from 'fs';
-import path from 'path';
+import { Actor } from "apify";
+import { execSync } from "child_process";
+import fs from "fs";
 
 await Actor.init();
 
 const input = await Actor.getInput();
+const text = input?.text || "Hola, este es un test de voz con Piper";
 
-const text = input?.text || "Hola, esto es una prueba de voz con Piper.";
-
-const WAV_PATH = '/tmp/output.wav';
-const MP3_PATH = '/tmp/output.mp3';
+const WAV_PATH = "/tmp/output.wav";
+const MP3_PATH = "/tmp/output.mp3";
 
 try {
-    // Validar binario
-    if (!fs.existsSync(process.env.PIPER_BIN)) {
-        throw new Error('Piper no encontrado en ' + process.env.PIPER_BIN);
-    }
+    console.log("🧠 Generando audio con Piper...");
 
-    // Generar WAV
-    execFileSync(process.env.PIPER_BIN, [
-        '--model', process.env.MODEL_PATH,
-        '--output_file', WAV_PATH
-    ], {
-        input: text,
-        stdio: ['pipe', 'ignore', 'pipe'],
-        maxBuffer: 10 * 1024 * 1024
+    execSync(`
+        echo "${text.replace(/"/g, '\\"')}" | \
+        ${process.env.PIPER_BIN} \
+        --model ${process.env.MODEL_PATH} \
+        --output_file ${WAV_PATH}
+    `, { stdio: "inherit" });
+
+    console.log("🔄 Convirtiendo a MP3...");
+
+    execSync(`
+        ffmpeg -y -i ${WAV_PATH} -codec:a libmp3lame -qscale:a 2 ${MP3_PATH}
+    `, { stdio: "inherit" });
+
+    const fileBuffer = fs.readFileSync(MP3_PATH);
+    const fileName = `output-${Date.now()}.mp3`;
+
+    await Actor.setValue(fileName, fileBuffer, {
+        contentType: "audio/mpeg",
     });
 
-    // Validar WAV
-    if (!fs.existsSync(WAV_PATH)) {
-        throw new Error('No se generó el WAV');
-    }
+    const url = `https://api.apify.com/v2/key-value-stores/default/records/${fileName}`;
 
-    // Convertir a MP3 (optimizado)
-    execFileSync('ffmpeg', [
-        '-y',
-        '-i', WAV_PATH,
-        '-vn',
-        '-ar', '44100',
-        '-ac', '2',
-        '-b:a', '128k',
-        MP3_PATH
-    ], {
-        stdio: 'ignore'
-    });
-
-    if (!fs.existsSync(MP3_PATH)) {
-        throw new Error('No se generó el MP3');
-    }
-
-    // Guardar en KV Store (esto crea URL pública)
-    const buffer = fs.readFileSync(MP3_PATH);
-
-    await Actor.setValue('output.mp3', buffer, {
-        contentType: 'audio/mpeg'
-    });
-
-    const run = await Actor.getEnv();
-
-    const url = `https://api.apify.com/v2/key-value-stores/${run.defaultKeyValueStoreId}/records/output.mp3`;
-
-    console.log('✅ MP3 URL:', url);
-
-    await Actor.setValue('OUTPUT', { url });
+    console.log("✅ MP3 URL:", url);
 
 } catch (err) {
-    console.error('❌ ERROR:', err.message);
+    console.error("❌ ERROR:", err);
     throw err;
+} finally {
+    await Actor.exit();
 }
-
-await Actor.exit();

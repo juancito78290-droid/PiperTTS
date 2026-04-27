@@ -7,13 +7,10 @@ await Actor.init();
 const input = await Actor.getInput() || {};
 let text = input.text || "Texto rápido optimizado";
 
-// 🔥 limpieza mínima (más rápido)
 text = text.replace(/\s+/g, ' ').trim();
 
-// 🔥 store
 const store = await Actor.openKeyValueStore();
 
-// 🔥 cache REAL (evita reprocesar)
 const existing = await store.getValue('OUTPUT.mp3');
 if (existing) {
     const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/OUTPUT.mp3`;
@@ -22,50 +19,46 @@ if (existing) {
     await Actor.exit();
 }
 
-const model = "/models/es_ES-mls_10246-low.onnx";
+const model = "/models/model.onnx";
 const outputPath = "/tmp/output.mp3";
 
 try {
-    console.log("⚡ Generando audio ULTRA rápido...");
+    console.log("⚡ Generando audio...");
 
-    // 🔥 piper ultra simple (menos carga CPU)
-    const piper = spawn("/usr/local/bin/piper", [
+    const piper = spawn("piper", [
         "--model", model,
-        "--output_file", "-",        // 🔥 stream directo
-        "--sentence_silence", "0.0"  // 🔥 sin pausas
+        "--output_file", "/tmp/output.wav",
+        "--sentence_silence", "0.0"
     ]);
-
-    // 🔥 ffmpeg ULTRA FAST (casi sin compresión)
-    const ffmpeg = spawn("ffmpeg", [
-        "-loglevel", "quiet",   // 🔥 evita overhead de logs
-        "-f", "s16le",
-        "-ar", "22050",
-        "-ac", "1",
-        "-i", "pipe:0",
-        "-acodec", "libmp3lame",
-        "-b:a", "32k",          // 🔥 mínimo peso = más rápido
-        "-threads", "1",        // 🔥 menos RAM
-        outputPath
-    ]);
-
-    // 🔥 conectar streams
-    piper.stdout.pipe(ffmpeg.stdin);
 
     piper.stdin.write(text);
     piper.stdin.end();
 
-    // 🔥 manejar errores correctamente (CLAVE)
     await new Promise((resolve, reject) => {
         piper.on('error', reject);
-        ffmpeg.on('error', reject);
+        piper.on('close', (code) => {
+            if (code === 0) resolve();
+            else reject(new Error("Piper error"));
+        });
+    });
 
+    const ffmpeg = spawn("ffmpeg", [
+        "-y",
+        "-loglevel", "error",
+        "-i", "/tmp/output.wav",
+        "-acodec", "libmp3lame",
+        "-b:a", "32k",
+        outputPath
+    ]);
+
+    await new Promise((resolve, reject) => {
+        ffmpeg.on('error', reject);
         ffmpeg.on('close', (code) => {
             if (code === 0) resolve();
             else reject(new Error("ffmpeg error"));
         });
     });
 
-    // 🔥 guardar SOLO mp3 (sin duplicados)
     await store.setValue('OUTPUT.mp3', fs.readFileSync(outputPath), {
         contentType: 'audio/mpeg',
     });

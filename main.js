@@ -24,10 +24,11 @@ const store = await Actor.openKeyValueStore();
 const hash = crypto.createHash('md5').update(text).digest('hex');
 const key = `${hash}.mp3`;
 
-const existing = await store.getValue('OUTPUT');
+// 🔥 CACHE CORREGIDO
+const existing = await store.getValue('OUTPUT.mp3');
 
 if (existing) {
-    const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/OUTPUT`;
+    const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/OUTPUT.mp3`;
     console.log("♻️ CACHE HIT");
     console.log(url);
 
@@ -106,17 +107,18 @@ try {
     );
 
     // =========================
-    // 💾 SOLO OUTPUT
+    // 💾 GUARDAR COMO OUTPUT.mp3
     // =========================
-    await store.setValue('OUTPUT', fs.readFileSync(finalMp3), {
+    await store.setValue('OUTPUT.mp3', fs.readFileSync(finalMp3), {
         contentType: 'audio/mpeg',
     });
 
-    const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/OUTPUT`;
+    const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/OUTPUT.mp3`;
 
     console.log("✅ AUDIO LISTO:");
     console.log(url);
 
+    // 🔥 OUTPUT FINAL
     await Actor.setValue('OUTPUT', { audioUrl: url });
 
 } catch (err) {

@@ -1,25 +1,103 @@
-import { execSync } from "child_process";
-import fs from "fs";
+const { Actor } = require('apify');
+const { spawn } = require('child_process');
+const fs = require('fs');
 
-const TEXT = "Hola, este es un ejemplo con Piper funcionando correctamente.";
-const AUDIO = "audio.wav";
-const VIDEO_IN = "input.mp4";
-const VIDEO_OUT = "output.mp4";
+Actor.main(async () => {
+    try {
+        const input = await Actor.getInput();
 
-// 1. Generar audio con Piper
-console.log("Generando audio...");
-execSync(`echo "${TEXT}" | piper --model /models/model.onnx --output_file ${AUDIO}`);
+        if (!input?.text) {
+            throw new Error("Debes enviar { text: '...' }");
+        }
 
-// 2. Verificar que el audio existe
-if (!fs.existsSync(AUDIO)) {
-  throw new Error("No se generó el audio");
-}
+        const text = input.text;
 
-// 3. Unir audio + video
-console.log("Uniendo audio y video...");
-execSync(`
-ffmpeg -y -i ${VIDEO_IN} -i ${AUDIO} \
--c:v copy -c:a aac -shortest ${VIDEO_OUT}
-`);
+        const id = Date.now();
+        const wavPath = `/tmp/audio-${id}.wav`;
+        const mp3Path = `/tmp/audio-${id}.mp3`;
 
-console.log("✅ Video generado:", VIDEO_OUT);
+        console.log("🎤 Piper...");
+
+        // ---- PIPER ----
+        await new Promise((resolve, reject) => {
+            const piper = spawn('/usr/local/bin/piper', [
+                '--model', '/models/model.onnx',
+                '--output_file', wavPath
+            ]);
+
+            let err = '';
+
+            piper.stdin.write(text);
+            piper.stdin.end();
+
+            piper.stderr.on('data', d => err += d.toString());
+
+            piper.on('close', code => {
+                if (code !== 0) return reject(new Error(err));
+                resolve();
+            });
+
+            piper.on('error', reject);
+        });
+
+        console.log("🎧 FFmpeg...");
+
+        // ---- WAV → MP3 ----
+        await new Promise((resolve, reject) => {
+            const ffmpeg = spawn('ffmpeg', [
+                '-y',
+                '-i', wavPath,
+                '-vn',
+                '-ar', '44100',
+                '-ac', '2',
+                '-b:a', '192k',
+                mp3Path
+            ]);
+
+            let err = '';
+
+            ffmpeg.stderr.on('data', d => err += d.toString());
+
+            ffmpeg.on('close', code => {
+                if (code !== 0) return reject(new Error(err));
+                resolve();
+            });
+
+            ffmpeg.on('error', reject);
+        });
+
+        console.log("☁️ Subiendo...");
+
+        const store = await Actor.openKeyValueStore();
+
+        const buffer = fs.readFileSync(mp3Path);
+        const key = `audio-${id}.mp3`;
+
+        await store.setValue(key, buffer, {
+            contentType: 'audio/mpeg',
+        });
+
+        const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/${key}?disableRedirect=true`;
+
+        console.log("✅ MP3:", url);
+
+        await Actor.setOutput({
+            url,
+            key,
+            size: buffer.length
+        });
+
+        // limpiar archivos
+        try {
+            fs.unlinkSync(wavPath);
+            fs.unlinkSync(mp3Path);
+        } catch {}
+
+        // ✅ cerrar actor correctamente
+        await Actor.exit();
+
+    } catch (err) {
+        console.error("❌ ERROR:", err);
+        process.exit(1);
+    }
+});

@@ -4,11 +4,13 @@ import fs from "fs";
 
 await Actor.init();
 
-// 🔥 Validar que piper existe
+const PIPER_PATH = "/usr/local/bin/piper";
+
+// 🔥 Validar que existe
 try {
-    execSync("which piper", { stdio: "inherit" });
+    execSync(`${PIPER_PATH} --help`, { stdio: "ignore" });
 } catch {
-    throw new Error("Piper no está instalado correctamente");
+    throw new Error("Piper no ejecutable o no encontrado");
 }
 
 const input = await Actor.getInput();
@@ -22,7 +24,7 @@ try {
 
     execSync(`
         echo "${text.replace(/"/g, '\\"')}" | \
-        piper \
+        ${PIPER_PATH} \
         --model ${process.env.MODEL_PATH} \
         --output_file ${WAV_PATH}
     `, { stdio: "inherit" });

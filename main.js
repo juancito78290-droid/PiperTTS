@@ -1,98 +1,65 @@
-import { Actor } from 'apify';
-import { spawn } from 'child_process';
-import fs from 'fs';
+import { execSync } from "child_process";
+import fs from "fs";
+import { randomUUID } from "crypto";
+import { Actor } from "apify";
 
 await Actor.init();
 
-const input = await Actor.getInput() || {};
-let text = input.text || "Texto rápido optimizado";
+// INPUT
+const input = await Actor.getInput();
+const text = input?.text || "Hola, esto es una prueba con Piper.";
 
-// Limpieza rápida
-text = text.replace(/\s+/g, ' ').trim();
-
-const store = await Actor.openKeyValueStore();
-
-// CACHE
-const existing = await store.getValue('OUTPUT.mp3');
-if (existing) {
-    const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/OUTPUT.mp3`;
-    console.log("♻️ CACHE HIT");
-    console.log(url);
-    await Actor.exit();
-}
+// IDs únicos
+const id = randomUUID();
 
 // Rutas
-const model = "/models/model.onnx";
-const outputPath = "/tmp/output.mp3";
+const wavPath = `/tmp/${id}.wav`;
+const mp3Path = `/tmp/${id}.mp3`;
 
-try {
-    console.log("⚡ Generando audio...");
+console.log("🧠 Generando audio con Piper...");
 
-    const piper = spawn("/usr/local/bin/piper", [
-        "--model", model,
-        "--output_file", "-", 
-        "--sentence_silence", "0.0"
-    ]);
+// Generar WAV con Piper
+execSync(`echo "${text.replace(/"/g, '\\"')}" | piper \
+--model /models/model.onnx \
+--config /models/model.onnx.json \
+--output_file ${wavPath}
+`);
 
-    const ffmpeg = spawn("ffmpeg", [
-        "-y",
-        "-f", "s16le",
-        "-ar", "22050",
-        "-ac", "1",
-        "-i", "pipe:0",
-        "-acodec", "libmp3lame",
-        "-b:a", "64k",
-        outputPath
-    ]);
-
-    // ERRORES VISIBLES
-    piper.stderr.on('data', d => console.error("PIPER:", d.toString()));
-    ffmpeg.stderr.on('data', d => console.error("FFMPEG:", d.toString()));
-
-    // PIPE
-    piper.stdout.pipe(ffmpeg.stdin);
-
-    // INPUT
-    piper.stdin.write(text);
-    piper.stdin.end();
-
-    // Esperar ambos procesos correctamente
-    await Promise.all([
-        new Promise((res, rej) => {
-            piper.on('close', code => {
-                if (code !== 0) rej(new Error("Piper falló"));
-                else res();
-            });
-            piper.on('error', rej);
-        }),
-        new Promise((res, rej) => {
-            ffmpeg.on('close', code => {
-                if (code !== 0) rej(new Error("FFmpeg falló"));
-                else res();
-            });
-            ffmpeg.on('error', rej);
-        })
-    ]);
-
-    // Verificar archivo
-    if (!fs.existsSync(outputPath)) {
-        throw new Error("No se generó el audio");
-    }
-
-    const buffer = fs.readFileSync(outputPath);
-
-    await store.setValue('OUTPUT.mp3', buffer, {
-        contentType: 'audio/mpeg',
-    });
-
-    const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/OUTPUT.mp3`;
-
-    console.log("✅ AUDIO LISTO:");
-    console.log(url);
-
-} catch (err) {
-    console.error("❌ ERROR REAL:", err);
-    throw err;
+// Validar WAV
+if (!fs.existsSync(wavPath)) {
+    throw new Error("❌ Piper no generó el WAV");
 }
+
+console.log("🎧 Convirtiendo a MP3...");
+
+// Convertir a MP3
+execSync(`ffmpeg -y -i ${wavPath} -codec:a libmp3lame -qscale:a 2 ${mp3Path}`);
+
+// Validar MP3
+if (!fs.existsSync(mp3Path)) {
+    throw new Error("❌ FFmpeg no generó el MP3");
+}
+
+console.log("☁️ Subiendo a Apify KV Store...");
+
+// Subir a Key-Value Store (archivo público)
+const store = await Actor.openKeyValueStore();
+
+const fileName = `${id}.mp3`;
+
+await store.setValue(fileName, fs.readFileSync(mp3Path), {
+    contentType: "audio/mpeg",
+});
+
+// URL pública
+const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/${fileName}`;
+
+console.log("✅ URL generada:", url);
+
+// OUTPUT
+await Actor.setOutput({
+    url,
+    fileName,
+});
 
 await Actor.exit();

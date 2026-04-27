@@ -26,44 +26,55 @@ if (existing) {
 
 // 🔥 CONFIG
 const model = "/models/es_AR-daniela-high.onnx";
+const tempWav = "/tmp/temp.wav";
 const outputPath = "/tmp/output.mp3";
 
 try {
-    console.log("⚡ Generando audio ultra rápido...");
+    console.log("⚡ Generando audio...");
 
-    const piper = spawn("piper", [
-        "--model", model,
-        "--output_file", "-",
-        "--length_scale", "1.15",
-        "--noise_scale", "0.2",
-        "--noise_w", "0.3",
-        "--sentence_silence", "0.0"
-    ]);
-
-    const ffmpeg = spawn("ffmpeg", [
-        "-y",
-        "-f", "s16le",
-        "-ar", "22050",
-        "-ac", "1",
-        "-i", "pipe:0",
-        "-acodec", "libmp3lame",
-        "-b:a", "96k",
-        outputPath
-    ]);
-
-    piper.stdout.pipe(ffmpeg.stdin);
-
-    piper.stdin.write(text);
-    piper.stdin.end();
-
+    // =========================
+    // 🔊 GENERAR WAV (FIX CLAVE)
+    // =========================
     await new Promise((resolve, reject) => {
+        const piper = spawn("piper", [
+            "--model", model,
+            "--output_file", tempWav,
+            "--length_scale", "1.15",
+            "--noise_scale", "0.2",
+            "--noise_w", "0.3",
+            "--sentence_silence", "0.0"
+        ]);
+
+        piper.stdin.write(text);
+        piper.stdin.end();
+
+        piper.on('close', (code) => {
+            if (code === 0) resolve();
+            else reject(new Error("piper error"));
+        });
+    });
+
+    // =========================
+    // 🎵 CONVERTIR A MP3
+    // =========================
+    await new Promise((resolve, reject) => {
+        const ffmpeg = spawn("ffmpeg", [
+            "-y",
+            "-i", tempWav,
+            "-acodec", "libmp3lame",
+            "-b:a", "96k",
+            outputPath
+        ]);
+
         ffmpeg.on('close', (code) => {
             if (code === 0) resolve();
             else reject(new Error("ffmpeg error"));
         });
     });
 
+    // =========================
     // 💾 GUARDAR
+    // =========================
     await store.setValue('OUTPUT.mp3', fs.readFileSync(outputPath), {
         contentType: 'audio/mpeg',
     });

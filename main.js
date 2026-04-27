@@ -13,7 +13,7 @@ const MP3_PATH = "/tmp/output.mp3";
 
         execSync(`
             echo "${text.replace(/"/g, '\\"')}" | \
-            /usr/local/bin/piper \
+            piper \
             --model /opt/models/model.onnx \
             --output_file ${WAV_PATH}
         `, { stdio: "inherit" });
@@ -35,10 +35,11 @@ const MP3_PATH = "/tmp/output.mp3";
 
         console.log("✅ MP3 URL:", url);
 
-        await Apify.Actor.exit();
+        // ✅ IMPORTANTE: cerrar actor correctamente
+        await Apify.exit();
 
     } catch (err) {
         console.error("❌ ERROR:", err.message);
-        await Apify.Actor.exit();
+        process.exit(1);
     }
 })();

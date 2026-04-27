@@ -2,6 +2,7 @@ FROM apify/actor-node:18
 
 USER root
 
+# Instalar dependencias
 RUN apk update && apk add --no-cache \
     ffmpeg \
     python3 \
@@ -10,22 +11,24 @@ RUN apk update && apk add --no-cache \
     wget \
     bash
 
-# Piper
+# Clonar Piper
 RUN git clone https://github.com/rhasspy/piper /piper
 
 WORKDIR /piper
 
-# Entorno virtual (evita error PEP 668)
+# Crear entorno virtual (evita error PEP 668)
 RUN python3 -m venv /venv
-RUN /venv/bin/pip install --upgrade pip setuptools wheel
-RUN /venv/bin/pip install -r requirements.txt
-
 ENV PATH="/venv/bin:$PATH"
 
-# Actor
+# Instalar dependencias básicas necesarias
+RUN pip install --upgrade pip setuptools wheel numpy
+
+# Volver al actor
 WORKDIR /usr/src/app
+
+# Copiar archivos
 COPY . ./
 
-RUN npm install --omit=dev
+RUN npm install
 
 CMD ["node", "main.js"]

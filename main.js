@@ -17,18 +17,30 @@ function run(cmd, args, opts = {}) {
     if (result.error) throw result.error;
     if (result.status !== 0) {
         const msg = result.stderr ? result.stderr.toString().trim() : 'sin stderr';
-        throw new Error(`[${cmd}] código ${result.status}: ${msg}`);
+        throw new Error(`[${path.basename(cmd)}] código ${result.status}: ${msg}`);
     }
     return result;
 }
 
 Actor.main(async () => {
 
+    // ── Validaciones previas al run ───────────────────────────────────────────
+    if (!fs.existsSync(PIPER_BIN)) {
+        throw new Error(`Piper no encontrado en: ${PIPER_BIN}`);
+    }
+    if (!fs.existsSync(MODEL_PATH)) {
+        throw new Error(`Modelo no encontrado en: ${MODEL_PATH}`);
+    }
+    if (!ffmpegPath || !fs.existsSync(ffmpegPath)) {
+        throw new Error(`ffmpeg-static no disponible: ${ffmpegPath}`);
+    }
+
+    // ── Input ─────────────────────────────────────────────────────────────────
     const input = await Actor.getInput() || {};
     const {
         text,
         outputKey    = 'audio',
-        speakingRate = 1.0,
+        speakingRate = 0.92,
         noiseScale   = 0.667,
         noiseW       = 0.8,
     } = input;
@@ -36,14 +48,13 @@ Actor.main(async () => {
     if (!text || !text.trim()) {
         throw new Error('El campo "text" es obligatorio en el input.');
     }
-    if (!fs.existsSync(MODEL_PATH)) {
-        throw new Error(`Modelo no encontrado: ${MODEL_PATH}`);
-    }
 
-    console.log(`✅  ffmpeg: ${ffmpegPath}`);
-    console.log('🎙️  Piper TTS — es_ES mls_10246-low');
-    console.log(`   Texto (${text.length} chars): ${text.substring(0, 80)}${text.length > 80 ? '…' : ''}`);
+    console.log(`✅  Piper   : ${PIPER_BIN}`);
+    console.log(`✅  Modelo  : ${MODEL_PATH}`);
+    console.log(`✅  ffmpeg  : ${ffmpegPath}`);
+    console.log(`🎙️  Texto   : ${text.substring(0, 80)}${text.length > 80 ? '…' : ''}`);
 
+    // ── Archivos temporales ───────────────────────────────────────────────────
     const tmpDir  = fs.mkdtempSync(path.join(os.tmpdir(), 'piper-'));
     const wavFile = path.join(tmpDir, 'output.wav');
     const mp3File = path.join(tmpDir, 'output.mp3');
@@ -51,6 +62,7 @@ Actor.main(async () => {
     try {
 
         // 1. Generar WAV con Piper
+        console.log('🔊  Generando WAV...');
         run(PIPER_BIN, [
             '--model',        MODEL_PATH,
             '--output_file',  wavFile,
@@ -62,7 +74,7 @@ Actor.main(async () => {
         });
 
         if (!fs.existsSync(wavFile) || fs.statSync(wavFile).size === 0) {
-            throw new Error('Piper no generó WAV o está vacío.');
+            throw new Error('Piper generó un WAV vacío o no lo creó.');
         }
         console.log(`✅  WAV: ${(fs.statSync(wavFile).size / 1024).toFixed(1)} KB`);
 
@@ -78,7 +90,7 @@ Actor.main(async () => {
         ]);
 
         if (!fs.existsSync(mp3File) || fs.statSync(mp3File).size === 0) {
-            throw new Error('ffmpeg no generó MP3 o está vacío.');
+            throw new Error('ffmpeg generó un MP3 vacío o no lo creó.');
         }
         const mp3Size = fs.statSync(mp3File).size;
         console.log(`✅  MP3: ${(mp3Size / 1024).toFixed(1)} KB`);
@@ -91,7 +103,7 @@ Actor.main(async () => {
         await kvStore.setValue(recordKey, fs.readFileSync(mp3File), {
             contentType: 'audio/mpeg',
         });
-        console.log(`📦  KV Store → "${recordKey}"`);
+        console.log(`📦  KV Store → "${recordKey}" (storeId: ${storeId})`);
 
         // 4. URL pública
         const mp3Url = `https://api.apify.com/v2/key-value-stores/${storeId}/records/${recordKey}`;

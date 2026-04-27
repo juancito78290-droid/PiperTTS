@@ -1,32 +1,29 @@
-FROM node:18-bullseye
+FROM apify/actor-node:18-bullseye
 
 # Instalar dependencias
 RUN apt-get update && apt-get install -y \
+    ffmpeg \
     wget \
     unzip \
-    ca-certificates \
-    libsndfile1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Descargar Piper
-WORKDIR /app
-RUN wget https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz && \
-    tar -xzf piper_linux_x86_64.tar.gz && \
-    mv piper /usr/local/bin/piper && \
-    chmod +x /usr/local/bin/piper
+# Instalar Piper
+RUN wget https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz \
+    && tar -xzf piper_linux_x86_64.tar.gz \
+    && cp piper/piper /usr/local/bin/piper \
+    && chmod +x /usr/local/bin/piper
 
-# Descargar modelo correcto (mls_10246 LOW)
-RUN mkdir -p /models && \
-    wget -O /models/model.onnx https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/mls_10246/low/es_ES-mls_10246-low.onnx && \
-    wget -O /models/model.onnx.json https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/mls_10246/low/es_ES-mls_10246-low.onnx.json
+# Crear carpeta de modelos
+RUN mkdir -p /models
 
-# Copiar app
-COPY package.json .
-RUN npm install
+# Descargar modelo CORRECTO (mls_10246)
+RUN wget -O /models/model.onnx https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/mls_10246/medium/es_ES-mls_10246-medium.onnx \
+    && wget -O /models/model.onnx.json https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/mls_10246/medium/es_ES-mls_10246-medium.onnx.json
 
-COPY main.js .
+# Copiar código
+COPY package*.json ./
+RUN npm install --omit=dev
 
-# Puerto
-EXPOSE 3000
+COPY . ./
 
-CMD ["node", "main.js"]
+CMD ["node", "main.cjs"]

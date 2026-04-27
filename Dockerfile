@@ -2,33 +2,36 @@ FROM apify/actor-node:18
 
 USER root
 
-# Instalar dependencias
+# Paquetes mínimos + estables
 RUN apk update && apk add --no-cache \
     ffmpeg \
-    python3 \
-    py3-pip \
-    git \
+    bash \
     wget \
-    bash
+    ca-certificates \
+    libstdc++
 
-# Clonar Piper
-RUN git clone https://github.com/rhasspy/piper /piper
+# Crear carpeta Piper
+RUN mkdir -p /opt/piper
 
-WORKDIR /piper
+# Descargar Piper binario estable
+RUN wget -O /opt/piper/piper.tar.gz \
+    https://github.com/rhasspy/piper/releases/download/v1.2.0/piper_linux_x86_64.tar.gz && \
+    tar -xzf /opt/piper/piper.tar.gz -C /opt/piper && \
+    chmod +x /opt/piper/piper && \
+    rm /opt/piper/piper.tar.gz
 
-# Crear entorno virtual (evita error PEP 668)
-RUN python3 -m venv /venv
-ENV PATH="/venv/bin:$PATH"
+# Descargar modelo español (ligero)
+RUN wget -O /opt/piper/model.onnx \
+    https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/mls_10246/low/es_ES-mls_10246-low.onnx
 
-# Instalar dependencias básicas necesarias
-RUN pip install --upgrade pip setuptools wheel numpy
-
-# Volver al actor
 WORKDIR /usr/src/app
 
-# Copiar archivos
-COPY . ./
+COPY package*.json ./
+RUN npm install --omit=dev
 
-RUN npm install
+COPY . .
+
+ENV PIPER_PATH=/opt/piper/piper
+ENV MODEL_PATH=/opt/piper/model.onnx
 
 CMD ["node", "main.js"]

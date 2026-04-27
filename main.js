@@ -1,41 +1,96 @@
 import { Actor } from 'apify';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import fs from 'fs';
 
 await Actor.init();
 
-const input = await Actor.getInput();
-const text = input?.text || "Hola mundo desde Piper";
+try {
+    const input = await Actor.getInput();
 
-const wavPath = '/tmp/output.wav';
-const mp3Path = '/tmp/output.mp3';
+    let text = input?.text || "Hola mundo";
 
-// ⚠️ Usa un modelo real descargado
-const modelPath = '/piper/es_ES-mls_10246-low.onnx';
+    // 🔐 Sanitizar texto (evita romper comandos)
+    text = text.replace(/["`$\\]/g, '');
 
-// 1. Generar WAV con Piper
-execSync(`
-echo "${text}" | /piper/piper \
-  --model ${modelPath} \
-  --output_file ${wavPath}
-`);
+    const MAX_CHARS = 500;
 
-// 2. Convertir a MP3
-execSync(`
-ffmpeg -y -i ${wavPath} -codec:a libmp3lame -qscale:a 2 ${mp3Path}
-`);
+    // ✂️ Dividir texto para evitar RAM issues
+    const chunks = text.match(new RegExp(`.{1,${MAX_CHARS}}`, 'g')) || [];
 
-// 3. Subir a key-value store
-const store = await Actor.openKeyValueStore();
-await store.setValue('output.mp3', fs.readFileSync(mp3Path), {
-    contentType: 'audio/mpeg',
-});
+    const wavFiles = [];
 
-// 4. URL pública
-const url = store.getPublicUrl('output.mp3');
+    console.log(`Procesando ${chunks.length} bloques...`);
 
-await Actor.setValue('OUTPUT', {
-    url,
-});
+    for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        const wavPath = `/tmp/part_${i}.wav`;
+
+        execFileSync(process.env.PIPER_PATH, [
+            '--model', process.env.MODEL_PATH,
+            '--output_file', wavPath
+        ], {
+            input: chunk,
+            timeout: 30000, // ⛔ evita cuelgues
+            maxBuffer: 10 * 1024 * 1024
+        });
+
+        wavFiles.push(wavPath);
+    }
+
+    const finalWav = '/tmp/final.wav';
+
+    // 🔗 Unir WAVs
+    if (wavFiles.length === 1) {
+        fs.copyFileSync(wavFiles[0], finalWav);
+    } else {
+        const concatList = '/tmp/list.txt';
+        fs.writeFileSync(
+            concatList,
+            wavFiles.map(f => `file '${f}'`).join('\n')
+        );
+
+        execFileSync('ffmpeg', [
+            '-y',
+            '-f', 'concat',
+            '-safe', '0',
+            '-i', concatList,
+            '-c', 'copy',
+            finalWav
+        ]);
+    }
+
+    const mp3 = '/tmp/output.mp3';
+
+    // 🎧 Convertir a MP3 optimizado
+    execFileSync('ffmpeg', [
+        '-y',
+        '-i', finalWav,
+        '-codec:a', 'libmp3lame',
+        '-qscale:a', '2',
+        mp3
+    ]);
+
+    const store = await Actor.openKeyValueStore();
+
+    await store.setValue('audio.mp3', fs.readFileSync(mp3), {
+        contentType: 'audio/mpeg',
+    });
+
+    const url = store.getPublicUrl('audio.mp3');
+
+    await Actor.setValue('OUTPUT', {
+        success: true,
+        url,
+        chunks: chunks.length
+    });
+
+} catch (err) {
+    console.error('ERROR REAL:', err);
+
+    await Actor.setValue('OUTPUT', {
+        success: false,
+        error: err.message
+    });
+}
 
 await Actor.exit();

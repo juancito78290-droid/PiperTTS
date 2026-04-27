@@ -1,13 +1,10 @@
-import { Actor } from "apify";
 import { execSync } from "child_process";
 import fs from "fs";
+import { Actor } from "apify";
 
 await Actor.init();
 
-const PIPER_PATH = "/usr/local/bin/piper";
-
-const input = await Actor.getInput();
-const text = input?.text || "Hola, este es un test de voz con Piper";
+const text = process.env.TEXT || "Hola, este es un test de voz con Piper";
 
 const WAV_PATH = "/tmp/output.wav";
 const MP3_PATH = "/tmp/output.mp3";
@@ -15,10 +12,13 @@ const MP3_PATH = "/tmp/output.mp3";
 try {
     console.log("🧠 Generando audio con Piper...");
 
+    // 🔥 Escapar texto correctamente
+    const safeText = text.replace(/"/g, '\\"');
+
     execSync(`
-        echo "${text.replace(/"/g, '\\"')}" | \
-        ${PIPER_PATH} \
-        --model ${process.env.MODEL_PATH} \
+        echo "${safeText}" | \
+        /usr/local/bin/piper \
+        --model /opt/models/model.onnx \
         --output_file ${WAV_PATH}
     `, { stdio: "inherit" });
 
@@ -28,11 +28,11 @@ try {
         ffmpeg -y -i ${WAV_PATH} -codec:a libmp3lame -qscale:a 2 ${MP3_PATH}
     `, { stdio: "inherit" });
 
-    const fileBuffer = fs.readFileSync(MP3_PATH);
+    const buffer = fs.readFileSync(MP3_PATH);
     const fileName = `output-${Date.now()}.mp3`;
 
-    await Actor.setValue(fileName, fileBuffer, {
-        contentType: "audio/mpeg",
+    await Actor.setValue(fileName, buffer, {
+        contentType: "audio/mpeg"
     });
 
     const url = `https://api.apify.com/v2/key-value-stores/default/records/${fileName}`;
@@ -41,7 +41,7 @@ try {
 
 } catch (err) {
     console.error("❌ ERROR:", err);
-    throw err;
-} finally {
-    await Actor.exit();
+    process.exit(1);
 }
+
+await Actor.exit();

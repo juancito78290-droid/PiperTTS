@@ -2,29 +2,27 @@ FROM apify/actor-node:18
 
 USER root
 
-# Instalar dependencias correctamente
-RUN apt-get update && apt-get install -y \
+# Alpine usa apk, NO apt-get
+RUN apk update && apk add --no-cache \
     ffmpeg \
     python3 \
-    python3-pip \
+    py3-pip \
     git \
     wget \
-    && rm -rf /var/lib/apt/lists/*
+    bash
 
 # Clonar Piper
 RUN git clone https://github.com/rhasspy/piper /piper
 
 WORKDIR /piper
 
-# Instalar Piper
+# Instalar dependencias de Piper
 RUN pip3 install -r requirements.txt
 
 WORKDIR /usr/src/app
 
-# Copiar tu código
 COPY . ./
 
-# Instalar dependencias Node
 RUN npm install
 
 CMD ["node", "main.js"]

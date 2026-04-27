@@ -18,7 +18,7 @@ const store = await Actor.openKeyValueStore();
 const existing = await store.getValue('OUTPUT.mp3');
 
 if (existing) {
-    const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/OUTPUT.mp3?disableRedirect=false`;
+    const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/OUTPUT.mp3?disableRedirect=true`;
     console.log("♻️ CACHE HIT");
     console.log(url);
     await Actor.exit();
@@ -40,12 +40,11 @@ try {
         "--sentence_silence", "0.0"
     ]);
 
-    // 🔥 FIX: formato de entrada explícito
     const ffmpeg = spawn("ffmpeg", [
         "-y",
-        "-f", "s16le",        // 🔥 formato raw
-        "-ar", "22050",       // 🔥 sample rate (clave)
-        "-ac", "1",           // 🔥 mono
+        "-f", "s16le",
+        "-ar", "22050",
+        "-ac", "1",
         "-i", "pipe:0",
         "-acodec", "libmp3lame",
         "-b:a", "96k",
@@ -69,7 +68,7 @@ try {
         contentType: 'audio/mpeg',
     });
 
-    const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/OUTPUT.mp3?disableRedirect=false`;
+    const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/OUTPUT.mp3?disableRedirect=true`;
 
     console.log("✅ AUDIO LISTO:");
     console.log(url);

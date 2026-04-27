@@ -1,29 +1,29 @@
-FROM node:18-slim
+FROM apify/actor-node:18
 
-# Instalar dependencias necesarias
+# Instalar dependencias
 RUN apt-get update && apt-get install -y \
     wget \
-    unzip \
+    ffmpeg \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Instalar Piper
-WORKDIR /opt
-RUN wget https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz \
+# Piper limpio
+RUN rm -rf /opt/piper && mkdir -p /opt/piper
+
+RUN wget -q https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz \
     && tar -xzf piper_linux_x86_64.tar.gz \
-    && mv piper /opt/piper \
-    && chmod +x /opt/piper/piper
+    && cp -r piper/* /opt/piper/ \
+    && chmod +x /opt/piper/piper \
+    && rm -rf piper piper_linux_x86_64.tar.gz
 
-# Agregar al PATH
-ENV PATH="/opt/piper:${PATH}"
-ENV LD_LIBRARY_PATH="/opt/piper"
+# Modelo
+RUN mkdir -p /models \
+    && wget -q https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/mls_10246/low/es_ES-mls_10246-low.onnx -O /models/model.onnx
 
-# Descargar modelo válido (ESPAÑOL)
-WORKDIR /opt/models
-RUN wget https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/amy/low/model.onnx -O model.onnx \
-    && wget https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/amy/low/config.json -O model.onnx.json
+ENV PATH="/opt/piper:$PATH"
 
-# App
 WORKDIR /usr/src/app
+
 COPY package*.json ./
 RUN npm install
 

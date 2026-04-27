@@ -12,9 +12,9 @@ let text = input.text || "Texto de prueba optimizado";
 // 🔥 LIMPIEZA (CLAVE)
 // =========================
 text = text
-    .replace(/\n/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+.replace(/\n/g, ' ')
+.replace(/\s+/g, ' ')
+.trim();
 
 // =========================
 // 🔥 CACHE (AHORRO TOTAL)
@@ -22,20 +22,16 @@ text = text
 const store = await Actor.openKeyValueStore();
 
 const hash = crypto.createHash('md5').update(text).digest('hex');
-const key = `audio_${hash}`;
+const key = `${hash}.mp3`; // 🔥 ahora es mp3 directo
 
-const existing = await store.getValue(key);
+const existing = await store.getValue('OUTPUT');
 
 if (existing) {
-    const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/${key}`;
+    const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/OUTPUT`;
     console.log("♻️ CACHE HIT");
     console.log(url);
 
-    await Actor.pushData({ audioUrl: url });
-
-    // 🔥 OUTPUT añadido
     await Actor.setValue('OUTPUT', { audioUrl: url });
-
     await Actor.exit();
 }
 
@@ -47,7 +43,7 @@ const finalWav = "/tmp/output.wav";
 const finalMp3 = "/tmp/output.mp3";
 
 // =========================
-// 🔥 SPLIT ANTI RAM (CLAVE)
+// 🔥 SPLIT ANTI RAM
 // =========================
 function splitText(text, maxLen = 130) {
     const words = text.split(" ");
@@ -71,9 +67,6 @@ try {
     const parts = splitText(text, 130);
     const wavFiles = [];
 
-    // =========================
-    // ⚡ GENERACIÓN OPTIMIZADA
-    // =========================
     for (let i = 0; i < parts.length; i++) {
         const wav = `/tmp/p_${i}.wav`;
 
@@ -93,9 +86,6 @@ try {
         wavFiles.push(wav);
     }
 
-    // =========================
-    // 🔗 UNIÓN RÁPIDA
-    // =========================
     const listFile = "/tmp/list.txt";
     fs.writeFileSync(
         listFile,
@@ -107,29 +97,24 @@ try {
         { stdio: 'ignore' }
     );
 
-    // =========================
-    // 🎵 MP3 ULTRA RÁPIDO
-    // =========================
     execSync(
         `ffmpeg -y -i ${finalWav} -codec:a libmp3lame -qscale:a 6 ${finalMp3}`,
         { stdio: 'ignore' }
     );
 
     // =========================
-    // 💾 GUARDAR
+    // 💾 SOLO OUTPUT (sin audio_xxx)
     // =========================
-    await store.setValue(key, fs.readFileSync(finalMp3), {
+    await store.setValue('OUTPUT', fs.readFileSync(finalMp3), {
         contentType: 'audio/mpeg',
     });
 
-    const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/${key}`;
+    const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/OUTPUT`;
 
     console.log("✅ AUDIO LISTO:");
     console.log(url);
 
-    await Actor.pushData({ audioUrl: url });
-
-    // 🔥 OUTPUT añadido
+    // 🔥 SOLO OUTPUT JSON
     await Actor.setValue('OUTPUT', { audioUrl: url });
 
 } catch (err) {

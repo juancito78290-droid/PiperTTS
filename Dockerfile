@@ -1,6 +1,6 @@
-FROM apify/actor-node:18
+FROM node:18-bullseye
 
-USER root
+WORKDIR /app
 
 RUN apt-get update && apt-get install -y \
     ffmpeg \
@@ -12,22 +12,19 @@ RUN apt-get update && apt-get install -y \
     espeak-ng \
     && rm -rf /var/lib/apt/lists/*
 
+# Instalar Piper (binario correcto)
 WORKDIR /opt/piper
 
-# Descargar Piper BINARIO CORRECTO
 RUN wget https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz \
     && tar -xzf piper_linux_x86_64.tar.gz \
     && cp piper/piper /usr/local/bin/piper \
     && chmod +x /usr/local/bin/piper
 
-# Verificar instalación
 RUN which piper && piper --help
 
-# Modelo (puedes cambiarlo luego)
+# Modelo
 RUN mkdir -p /opt/models \
     && wget -O /opt/models/model.onnx https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/mai/medium/es_ES-mai-medium.onnx
-
-WORKDIR /app
 
 COPY package*.json ./
 RUN npm install

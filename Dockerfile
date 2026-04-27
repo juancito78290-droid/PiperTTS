@@ -7,7 +7,6 @@ RUN groupadd -r myuser && useradd -r -g myuser -m -d /home/myuser myuser
 
 WORKDIR /home/myuser
 
-# espeak-ng reduce drásticamente el uso de RAM de Piper
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \

@@ -28,11 +28,10 @@ const key = `${hash}.mp3`;
 const existing = await store.getValue('OUTPUT.mp3');
 
 if (existing) {
-    const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/OUTPUT.mp3`;
+    const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/OUTPUT.mp3?disableRedirect=false`;
     console.log("♻️ CACHE HIT");
     console.log(url);
 
-    // ❌ ELIMINADO: Actor.setValue('OUTPUT', ...)
     await Actor.exit();
 }
 
@@ -113,12 +112,10 @@ try {
         contentType: 'audio/mpeg',
     });
 
-    const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/OUTPUT.mp3`;
+    const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/OUTPUT.mp3?disableRedirect=false`;
 
     console.log("✅ AUDIO LISTO:");
     console.log(url);
-
-    // ❌ ELIMINADO: Actor.setValue('OUTPUT', ...)
 
 } catch (err) {
     console.error("❌ ERROR:", err);

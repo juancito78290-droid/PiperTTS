@@ -1,14 +1,13 @@
 FROM apify/actor-node:18
 
-# Instalar dependencias correctamente en Alpine
+# Instalar dependencias (Alpine correcto)
 RUN apk add --no-cache \
     ffmpeg \
     wget \
     tar \
     libstdc++ \
     libgcc \
-    espeak-ng \
-    espeak-ng-data
+    espeak-ng
 
 # Descargar Piper
 WORKDIR /opt/piper
@@ -20,10 +19,10 @@ RUN wget https://github.com/rhasspy/piper/releases/download/v1.2.0/piper_linux_x
 # Crear carpeta de modelos
 RUN mkdir -p /opt/models
 
-# Copiar modelo (asegúrate que existe en tu repo)
+# Copiar modelo
 COPY model.onnx /opt/models/model.onnx
 
-# Volver al app
+# App
 WORKDIR /app
 
 COPY package*.json ./

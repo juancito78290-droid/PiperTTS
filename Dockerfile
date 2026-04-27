@@ -2,7 +2,7 @@ FROM apify/actor-node:18
 
 USER root
 
-# Instalar dependencias (ALPINE → usar apk, NO apt-get)
+# Dependencias (ALPINE)
 RUN apk add --no-cache \
     ffmpeg \
     wget \
@@ -11,26 +11,29 @@ RUN apk add --no-cache \
     libgcc \
     espeak-ng
 
-# Instalar Piper correctamente (con librerías)
-WORKDIR /opt/piper
+# Descargar Piper
+WORKDIR /opt
 
 RUN wget https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz \
     && tar -xzf piper_linux_x86_64.tar.gz \
-    && cp -r piper/* /usr/local/ \
+    && rm piper_linux_x86_64.tar.gz
+
+# 🔥 MOVER BINARIO Y LIBS CORRECTAMENTE
+RUN find . -name "piper" -type f -exec cp {} /usr/local/bin/piper \; \
     && chmod +x /usr/local/bin/piper
 
-# Asegurar que las librerías sean encontradas
+# Copiar TODAS las librerías necesarias
+RUN find . -name "*.so*" -exec cp {} /usr/local/lib/ \;
+
+# Asegurar libs
 ENV LD_LIBRARY_PATH=/usr/local/lib
 
-# Crear carpeta de modelos
+# Modelos
 WORKDIR /opt/models
 
-# ⚠️ IMPORTANTE:
-# Debes subir tu modelo .onnx a tu repo o descargarlo aquí
-# Ejemplo (puedes cambiarlo por tu modelo real):
 RUN wget https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/medium/es_ES-medium.onnx -O model.onnx
 
-# Volver al app
+# App
 WORKDIR /usr/src/app
 
 COPY package*.json ./

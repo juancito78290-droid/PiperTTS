@@ -1,7 +1,6 @@
 import { Actor } from 'apify';
 import { spawn } from 'child_process';
 import fs from 'fs';
-import crypto from 'crypto';
 
 await Actor.init();
 
@@ -11,20 +10,8 @@ let text = input.text || "Texto optimizado ultra rápido";
 // 🔥 LIMPIEZA
 text = text.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
 
-// 🔥 STORE
 const store = await Actor.openKeyValueStore();
 
-// 🔥 CACHE
-const existing = await store.getValue('OUTPUT.mp3');
-
-if (existing) {
-    const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/OUTPUT.mp3?disableRedirect=true`;
-    console.log("♻️ CACHE HIT");
-    console.log(url);
-    await Actor.exit();
-}
-
-// 🔥 CONFIG
 const model = "/models/es_AR-daniela-high.onnx";
 const outputPath = "/tmp/output.mp3";
 
@@ -47,7 +34,7 @@ try {
         "-ac", "1",
         "-i", "pipe:0",
         "-acodec", "libmp3lame",
-        "-b:a", "32k",
+        "-b:a", "64k",
         outputPath
     ]);
 
@@ -63,12 +50,11 @@ try {
         });
     });
 
-    // 💾 GUARDAR
-    await store.setValue('OUTPUT.mp3', fs.readFileSync(outputPath), {
+    await store.setValue('OUTPUT.mp3', fs.createReadStream(outputPath), {
         contentType: 'audio/mpeg',
     });
 
-    const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/OUTPUT.mp3?disableRedirect=true`;
+    const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/OUTPUT.mp3?disableRedirect=false`;
 
     console.log("✅ AUDIO LISTO:");
     console.log(url);

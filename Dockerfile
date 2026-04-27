@@ -1,42 +1,41 @@
 FROM apify/actor-node:18
 
-USER root
-
-# 🔥 Instalar dependencias necesarias (incluye espeak-ng)
-RUN apk update && apk add --no-cache \
+# Instalar dependencias necesarias
+RUN apt-get update && apt-get install -y \
     ffmpeg \
-    bash \
     wget \
-    ca-certificates \
-    libstdc++ \
-    espeak-ng
+    tar \
+    libstdc++6 \
+    libgcc-s1 \
+    libespeak-ng1 \
+    espeak-ng-data \
+    && rm -rf /var/lib/apt/lists/*
 
-# 🔥 Instalar Piper (versión estable correcta)
-RUN mkdir -p /opt/piper && \
-    wget -O /opt/piper/piper.tar.gz \
-    https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz && \
-    tar -xzf /opt/piper/piper.tar.gz -C /opt/piper && \
-    mv /opt/piper/piper /usr/local/bin/piper && \
-    chmod +x /usr/local/bin/piper && \
-    rm -rf /opt/piper
+# Crear carpeta para piper
+WORKDIR /opt/piper
 
-# 🔥 Verificación (evita futuros errores silenciosos)
-RUN which piper && piper --help
+# Descargar Piper
+RUN wget https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz -O piper.tar.gz \
+    && tar -xzf piper.tar.gz \
+    && chmod +x piper/piper
 
-# 🔥 Descargar modelo válido (URL CORRECTA)
-RUN mkdir -p /opt/models && \
-    wget -O /opt/models/model.onnx \
-    https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/amy/low/es_ES-amy-low.onnx?download=true && \
-    wget -O /opt/models/model.json \
-    https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/amy/low/es_ES-amy-low.onnx.json?download=true
+# Agregar al PATH
+ENV PATH="/opt/piper/piper:${PATH}"
 
+# Crear carpeta de modelos
+RUN mkdir -p /opt/models
+
+# Copiar modelo (asegúrate de que exista en tu proyecto)
+COPY model.onnx /opt/models/model.onnx
+
+# Volver al app
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm install
-
+# Copiar código
 COPY . .
 
-USER node
+# Instalar dependencias node
+RUN npm install
 
+# Ejecutar
 CMD ["node", "main.js"]

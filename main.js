@@ -1,28 +1,62 @@
 import { Actor } from 'apify';
 import { execSync } from 'child_process';
 import fs from 'fs';
+import crypto from 'crypto';
 
 await Actor.init();
 
 const input = await Actor.getInput() || {};
-let text = input.text || "Texto largo de prueba optimizado";
+let text = input.text || "Texto de prueba optimizado ultra pro";
 
-// 🔥 limpieza ligera
+// =========================
+// 🔥 NORMALIZAR TEXTO
+// =========================
 text = text
+    .toLowerCase()
     .replace(/\n/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
-const model = "/models/es_ES-mls_10246-low.onnx";
+// 🔥 LIMITADOR ANTI CRASH
+if (text.length > 1200) {
+    text = text.slice(0, 1200);
+}
+
+// =========================
+// 🔥 HASH (CACHE)
+// =========================
+const model = "mls10246";
+const hash = crypto.createHash('md5').update(text).digest('hex');
+const key = `audio_${model}_${hash}`;
+
+const store = await Actor.openKeyValueStore();
+
+// 🔁 REUTILIZAR SI EXISTE
+const existing = await store.getValue(key);
+
+if (existing) {
+    const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/${key}`;
+    console.log("♻️ CACHE HIT");
+    console.log(url);
+
+    await Actor.pushData({ audioUrl: url });
+    await Actor.exit();
+}
+
+// =========================
+// 🔥 CONFIG
+// =========================
+const modelPath = "/models/es_ES-mls_10246-low.onnx";
 
 const finalWav = "/tmp/output.wav";
 const finalMp3 = "/tmp/output.mp3";
 
-// 🔥 dividir SIN que se note (clave)
-function splitInvisible(text, max = 180) {
+// =========================
+// 🔥 SPLIT INVISIBLE (ANTI RAM)
+// =========================
+function splitInvisible(text, max = 140) {
     const parts = [];
     let current = "";
-
     const words = text.split(" ");
 
     for (let w of words) {
@@ -40,24 +74,24 @@ function splitInvisible(text, max = 180) {
 }
 
 try {
-    console.log("⚡ Modo invisible activado...");
-
-    const chunks = splitInvisible(text, 180);
+    const chunks = splitInvisible(text, 140);
     const wavParts = [];
 
+    // =========================
+    // 🔥 GENERAR AUDIO POR PARTES
+    // =========================
     for (let i = 0; i < chunks.length; i++) {
-        const part = chunks[i];
-        const wav = `/tmp/part_${i}.wav`;
+        const wav = `/tmp/p_${i}.wav`;
 
         execSync(
-            `piper --model ${model} \
+            `piper --model ${modelPath} \
             --output_file ${wav} \
-            --length_scale 1.08 \
-            --noise_scale 0.32 \
-            --noise_w 0.58 \
-            --sentence_silence 0.03`,
+            --length_scale 1.15 \
+            --noise_scale 0.3 \
+            --noise_w 0.55 \
+            --sentence_silence 0.02`,
             {
-                input: part,
+                input: chunks[i],
                 stdio: ['pipe', 'ignore', 'ignore']
             }
         );
@@ -65,8 +99,9 @@ try {
         wavParts.push(wav);
     }
 
-    console.log("🔗 Uniendo audio (sin cortes)...");
-
+    // =========================
+    // 🔗 UNIR SIN RECODIFICAR (RÁPIDO)
+    // =========================
     const listFile = "/tmp/list.txt";
     fs.writeFileSync(
         listFile,
@@ -78,28 +113,32 @@ try {
         { stdio: 'ignore' }
     );
 
-    console.log("🎚️ Post-procesando...");
-
+    // =========================
+    // 🎵 CONVERTIR A MP3 (ULTRA LIGHT)
+    // =========================
     execSync(
         `ffmpeg -y -i ${finalWav} \
-        -af "silenceremove=1:0:-50dB,highpass=f=80,lowpass=f=12000,dynaudnorm,volume=1.1" \
-        -codec:a libmp3lame -qscale:a 6 ${finalMp3}`,
+        -af "volume=1.1" \
+        -codec:a libmp3lame -qscale:a 7 ${finalMp3}`,
         { stdio: 'ignore' }
     );
 
-    const key = `OUTPUT_MP3_${Date.now()}`;
-
-    await Actor.setValue(key, fs.readFileSync(finalMp3), {
+    // =========================
+    // 💾 GUARDAR (CACHE)
+    // =========================
+    await store.setValue(key, fs.readFileSync(finalMp3), {
         contentType: 'audio/mpeg',
     });
 
-    const url = `https://api.apify.com/v2/key-value-stores/${Actor.getEnv().defaultKeyValueStoreId}/records/${key}`;
+    const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/${key}`;
 
-    console.log("✅ AUDIO FINAL:");
+    console.log("✅ AUDIO NUEVO:");
     console.log(url);
 
+    await Actor.pushData({ audioUrl: url });
+
 } catch (err) {
-    console.error("❌ Error:", err);
+    console.error("❌ ERROR:", err);
     throw err;
 }
 

@@ -34,21 +34,20 @@ try {
     const piper = spawn("piper", [
         "--model", model,
         "--output_file", "-",
-        "--length_scale", "1.15",
-        "--noise_scale", "0.2",
-        "--noise_w", "0.3",
+        "--length_scale", "1.2",
+        "--noise_scale", "0.15",
+        "--noise_w", "0.2",
         "--sentence_silence", "0.0"
     ]);
 
-    // 🔥 FIX: formato de entrada explícito
     const ffmpeg = spawn("ffmpeg", [
         "-y",
-        "-f", "s16le",        // 🔥 formato raw
-        "-ar", "22050",       // 🔥 sample rate (clave)
-        "-ac", "1",           // 🔥 mono
+        "-f", "s16le",
+        "-ar", "22050",
+        "-ac", "1",
         "-i", "pipe:0",
         "-acodec", "libmp3lame",
-        "-b:a", "96k",
+        "-b:a", "32k",
         outputPath
     ]);
 

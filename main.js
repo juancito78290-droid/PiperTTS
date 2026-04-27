@@ -1,37 +1,25 @@
-import { Actor } from 'apify';
-import { execSync } from 'child_process';
-import fs from 'fs';
+import { execSync } from "child_process";
+import fs from "fs";
 
-await Actor.init();
+const TEXT = "Hola, este es un ejemplo con Piper funcionando correctamente.";
+const AUDIO = "audio.wav";
+const VIDEO_IN = "input.mp4";
+const VIDEO_OUT = "output.mp4";
 
-const input = await Actor.getInput();
-const text = (input?.text || "Hola mundo desde Piper").replace(/"/g, '');
+// 1. Generar audio con Piper
+console.log("Generando audio...");
+execSync(`echo "${TEXT}" | piper --model /models/model.onnx --output_file ${AUDIO}`);
 
-const wavPath = '/tmp/output.wav';
-const mp3Path = '/tmp/output.mp3';
+// 2. Verificar que el audio existe
+if (!fs.existsSync(AUDIO)) {
+  throw new Error("No se generó el audio");
+}
 
-// Generar audio con Piper
+// 3. Unir audio + video
+console.log("Uniendo audio y video...");
 execSync(`
-echo "${text}" | /opt/piper/piper \
---model /models/model.onnx \
---config /models/model.onnx.json \
---output_file ${wavPath}
+ffmpeg -y -i ${VIDEO_IN} -i ${AUDIO} \
+-c:v copy -c:a aac -shortest ${VIDEO_OUT}
 `);
 
-// Convertir a MP3
-execSync(`ffmpeg -y -i ${wavPath} ${mp3Path}`);
-
-// Guardar en KV
-const store = await Actor.openKeyValueStore();
-const key = `audio-${Date.now()}.mp3`;
-
-await store.setValue(key, fs.readFileSync(mp3Path), {
-    contentType: 'audio/mpeg',
-});
-
-// URL directa
-const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/${key}`;
-
-await Actor.setOutput({ url });
-
-await Actor.exit();
+console.log("✅ Video generado:", VIDEO_OUT);

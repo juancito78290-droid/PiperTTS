@@ -1,37 +1,30 @@
-FROM node:18-bullseye
+FROM apify/actor-node:18
 
-ENV DEBIAN_FRONTEND=noninteractive
+USER root
 
+# Instalar dependencias correctamente
 RUN apt-get update && apt-get install -y \
     ffmpeg \
+    python3 \
+    python3-pip \
+    git \
     wget \
-    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Piper
-WORKDIR /tmp
+# Clonar Piper
+RUN git clone https://github.com/rhasspy/piper /piper
 
-RUN wget -q https://github.com/rhasspy/piper/releases/download/v1.2.0/piper_linux_x64.tar.gz \
-    && tar -xzf piper_linux_x64.tar.gz \
-    && mv piper/piper /usr/local/bin/piper \
-    && chmod +x /usr/local/bin/piper \
-    && rm -rf piper*
+WORKDIR /piper
 
-# Modelos
-RUN mkdir -p /models
+# Instalar Piper
+RUN pip3 install -r requirements.txt
 
-RUN wget -q -O /models/model.onnx \
-    https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/mls_10246/low/es_ES-mls_10246-low.onnx
+WORKDIR /usr/src/app
 
-RUN wget -q -O /models/model.onnx.json \
-    https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/mls_10246/low/es_ES-mls_10246-low.onnx.json
+# Copiar tu código
+COPY . ./
 
-# App
-WORKDIR /app
-
-COPY package*.json ./
-RUN npm install --omit=dev
-
-COPY . .
+# Instalar dependencias Node
+RUN npm install
 
 CMD ["node", "main.js"]

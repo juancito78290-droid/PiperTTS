@@ -1,5 +1,5 @@
 const { Actor } = require('apify');
-const { spawn } = require('child_process');
+const { spawnSync } = require('child_process');
 const ffmpegPath = require('ffmpeg-static');
 const fs   = require('fs');
 const path = require('path');
@@ -8,79 +8,12 @@ const os   = require('os');
 const PIPER_BIN  = '/usr/local/bin/piper';
 const MODEL_PATH = '/usr/local/piper/voices/es_ES-mls_10246-low.onnx';
 
-// Ejecuta Piper de forma asíncrona y espera a que termine
-// Ignora el exit code — solo importa si el WAV existe al final
-function runPiper(wavFile, text, noiseScale, noiseW, lengthScale) {
-    return new Promise((resolve, reject) => {
-        const proc = spawn(PIPER_BIN, [
-            '--model',        MODEL_PATH,
-            '--output_file',  wavFile,
-            '--noise_scale',  String(noiseScale),
-            '--noise_w',      String(noiseW),
-            '--length_scale', String(lengthScale),
-        ]);
-
-        let stderrLog = '';
-        proc.stderr.on('data', (data) => {
-            stderrLog += data.toString();
-        });
-
-        // Error de sistema (proceso no pudo lanzarse)
-        proc.on('error', (err) => reject(err));
-
-        proc.on('close', () => {
-            // No evaluamos el exit code de Piper — escribe logs en stderr
-            // y puede terminar con señal (null). Solo importa el archivo WAV.
-            console.log(`   Piper stderr: ${stderrLog.trim()}`);
-            resolve();
-        });
-
-        // Enviar texto por stdin y cerrar
-        proc.stdin.write(text, 'utf8');
-        proc.stdin.end();
-    });
-}
-
-// Ejecuta ffmpeg de forma asíncrona
-function runFfmpeg(wavFile, mp3File) {
-    return new Promise((resolve, reject) => {
-        const proc = spawn(ffmpegPath, [
-            '-y',
-            '-i',        wavFile,
-            '-codec:a',  'libmp3lame',
-            '-qscale:a', '2',
-            '-ar',       '22050',
-            mp3File,
-        ]);
-
-        let stderrLog = '';
-        proc.stderr.on('data', (data) => {
-            stderrLog += data.toString();
-        });
-
-        proc.on('error', (err) => reject(err));
-
-        proc.on('close', (code) => {
-            if (code !== 0) {
-                return reject(new Error(`ffmpeg falló (código ${code}): ${stderrLog.trim()}`));
-            }
-            resolve();
-        });
-    });
-}
-
 Actor.main(async () => {
 
-    // ── Validaciones previas ──────────────────────────────────────────────────
-    if (!fs.existsSync(PIPER_BIN)) {
-        throw new Error(`Piper no encontrado: ${PIPER_BIN}`);
-    }
-    if (!fs.existsSync(MODEL_PATH)) {
-        throw new Error(`Modelo no encontrado: ${MODEL_PATH}`);
-    }
-    if (!ffmpegPath || !fs.existsSync(ffmpegPath)) {
-        throw new Error(`ffmpeg-static no disponible: ${ffmpegPath}`);
-    }
+    // ── Validaciones ──────────────────────────────────────────────────────────
+    if (!fs.existsSync(PIPER_BIN))  throw new Error(`Piper no encontrado: ${PIPER_BIN}`);
+    if (!fs.existsSync(MODEL_PATH)) throw new Error(`Modelo no encontrado: ${MODEL_PATH}`);
+    if (!ffmpegPath || !fs.existsSync(ffmpegPath)) throw new Error(`ffmpeg no encontrado: ${ffmpegPath}`);
 
     // ── Input ─────────────────────────────────────────────────────────────────
     const input = await Actor.getInput() || {};
@@ -92,9 +25,7 @@ Actor.main(async () => {
         noiseW       = 0.8,
     } = input;
 
-    if (!text || !text.trim()) {
-        throw new Error('El campo "text" es obligatorio en el input.');
-    }
+    if (!text || !text.trim()) throw new Error('El campo "text" es obligatorio.');
 
     const lengthScale = (1.0 / speakingRate).toFixed(3);
 
@@ -104,38 +35,82 @@ Actor.main(async () => {
     console.log(`🎙️  Texto  : ${text.substring(0, 80)}${text.length > 80 ? '…' : ''}`);
 
     // ── Archivos temporales ───────────────────────────────────────────────────
-    const tmpDir  = fs.mkdtempSync(path.join(os.tmpdir(), 'piper-'));
-    const wavFile = path.join(tmpDir, 'output.wav');
-    const mp3File = path.join(tmpDir, 'output.mp3');
+    const tmpDir   = fs.mkdtempSync(path.join(os.tmpdir(), 'piper-'));
+    const txtFile  = path.join(tmpDir, 'input.txt');
+    const wavFile  = path.join(tmpDir, 'output.wav');
+    const mp3File  = path.join(tmpDir, 'output.mp3');
 
     try {
 
-        // 1. Generar WAV con Piper (async, stdin → output_file)
+        // 1. Escribir texto en archivo — evita cualquier problema con stdin
+        fs.writeFileSync(txtFile, text, 'utf8');
+        console.log(`📝  Texto escrito en: ${txtFile}`);
+
+        // 2. Ejecutar Piper con --input_file y --output_file
         console.log('🔊  Generando WAV...');
-        await runPiper(wavFile, text, noiseScale, noiseW, lengthScale);
 
-        // Esperar hasta 3 segundos a que el SO termine de escribir el archivo
-        for (let i = 0; i < 6; i++) {
-            if (fs.existsSync(wavFile) && fs.statSync(wavFile).size > 100) break;
-            await new Promise(r => setTimeout(r, 500));
+        const piperResult = spawnSync(PIPER_BIN, [
+            '--model',        MODEL_PATH,
+            '--input_file',   txtFile,
+            '--output_file',  wavFile,
+            '--noise_scale',  String(noiseScale),
+            '--noise_w',      String(noiseW),
+            '--length_scale', String(lengthScale),
+        ], {
+            timeout:  120_000,
+            encoding: 'buffer',
+        });
+
+        // Mostrar siempre el stderr de Piper para diagnóstico
+        if (piperResult.stderr && piperResult.stderr.length > 0) {
+            console.log(`   Piper log: ${piperResult.stderr.toString().trim()}`);
         }
 
+        // Error de sistema (el proceso no pudo lanzarse)
+        if (piperResult.error) throw piperResult.error;
+
+        // Verificar que el WAV existe y tiene contenido
         if (!fs.existsSync(wavFile) || fs.statSync(wavFile).size < 100) {
-            throw new Error('Piper terminó pero no generó el archivo WAV.');
+            throw new Error(
+                `Piper no generó el WAV. ` +
+                `Exit: ${piperResult.status} | ` +
+                `stderr: ${piperResult.stderr ? piperResult.stderr.toString().trim() : 'vacío'}`
+            );
         }
+
         console.log(`✅  WAV: ${(fs.statSync(wavFile).size / 1024).toFixed(1)} KB`);
 
-        // 2. Convertir WAV → MP3
+        // 3. Convertir WAV → MP3
         console.log('🔄  Convirtiendo a MP3...');
-        await runFfmpeg(wavFile, mp3File);
+
+        const ffResult = spawnSync(ffmpegPath, [
+            '-y',
+            '-i',        wavFile,
+            '-codec:a',  'libmp3lame',
+            '-qscale:a', '2',
+            '-ar',       '22050',
+            mp3File,
+        ], {
+            timeout:  60_000,
+            encoding: 'buffer',
+        });
+
+        if (ffResult.error) throw ffResult.error;
+        if (ffResult.status !== 0) {
+            throw new Error(
+                `ffmpeg falló (código ${ffResult.status}): ` +
+                `${ffResult.stderr ? ffResult.stderr.toString().trim() : 'sin stderr'}`
+            );
+        }
 
         if (!fs.existsSync(mp3File) || fs.statSync(mp3File).size < 100) {
-            throw new Error('ffmpeg no generó el MP3.');
+            throw new Error('ffmpeg no generó el MP3 o está vacío.');
         }
+
         const mp3Size = fs.statSync(mp3File).size;
         console.log(`✅  MP3: ${(mp3Size / 1024).toFixed(1)} KB`);
 
-        // 3. Subir al Key-Value Store
+        // 4. Subir al Key-Value Store
         const kvStore   = await Actor.openKeyValueStore();
         const storeId   = kvStore.id || 'default';
         const recordKey = `${outputKey}.mp3`;
@@ -145,10 +120,10 @@ Actor.main(async () => {
         });
         console.log(`📦  KV Store → "${recordKey}" (storeId: ${storeId})`);
 
-        // 4. URL pública
+        // 5. URL pública
         const mp3Url = `https://api.apify.com/v2/key-value-stores/${storeId}/records/${recordKey}`;
 
-        // 5. Output en Dataset
+        // 6. Output en Dataset
         await Actor.pushData({
             success      : true,
             mp3Url,
@@ -163,6 +138,7 @@ Actor.main(async () => {
         console.log(`\n🎉  URL del MP3:\n    ${mp3Url}\n`);
 
     } finally {
+        try { if (fs.existsSync(txtFile)) fs.unlinkSync(txtFile); } catch (_) {}
         try { if (fs.existsSync(wavFile)) fs.unlinkSync(wavFile); } catch (_) {}
         try { if (fs.existsSync(mp3File)) fs.unlinkSync(mp3File); } catch (_) {}
         try { fs.rmdirSync(tmpDir); } catch (_) {}

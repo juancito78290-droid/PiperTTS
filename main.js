@@ -1,40 +1,61 @@
-import { exec } from "child_process";
+import { execSync } from "child_process";
 import fs from "fs";
-import path from "path";
+import { Actor } from "apify";
 
-const TEXT = process.env.TEXT || "Hola, esto es una prueba de voz con Piper";
-const OUTPUT = "output.wav";
+await Actor.init();
 
-function runPiper(text) {
-    return new Promise((resolve, reject) => {
-        const command = `echo "${text}" | piper --model /opt/models/model.onnx --output_file ${OUTPUT}`;
+const input = await Actor.getInput() || {};
+const TEXT = input.text || "Hola, audio generado correctamente";
 
-        exec(command, (error, stdout, stderr) => {
-            if (error) {
-                console.error("❌ Error ejecutando Piper:", error);
-                reject(error);
-                return;
-            }
+const WAV = "/tmp/output.wav";
+const MP3 = "/tmp/output.mp3";
+const MODEL = "/models/model.onnx";
 
-            console.log("✅ Audio generado:", OUTPUT);
-            resolve();
-        });
-    });
+// Validaciones
+if (!fs.existsSync("/opt/piper/piper")) {
+    throw new Error("Piper no existe");
+}
+if (!fs.existsSync(MODEL)) {
+    throw new Error("Modelo no existe");
 }
 
-async function main() {
-    try {
-        await runPiper(TEXT);
+// 1. Generar WAV
+execSync(
+    `echo "${TEXT}" | /opt/piper/piper --model ${MODEL} --output_file ${WAV}`,
+    { stdio: "inherit" }
+);
 
-        if (fs.existsSync(OUTPUT)) {
-            console.log("📁 Archivo listo para usar");
-        } else {
-            console.log("❌ No se generó el audio");
-        }
+// 2. Convertir a MP3
+execSync(
+    `ffmpeg -y -i ${WAV} -codec:a libmp3lame -b:a 128k ${MP3}`,
+    { stdio: "inherit" }
+);
 
-    } catch (err) {
-        console.error("❌ Fallo total:", err);
-    }
+// Validar
+if (!fs.existsSync(MP3)) {
+    throw new Error("No se generó el MP3");
 }
 
-main();
+// 3. Subir a Key-Value Store
+const store = await Actor.openKeyValueStore();
+
+// nombre único
+const key = `audio-${Date.now()}.mp3`;
+
+await store.setValue(key, fs.readFileSync(MP3), {
+    contentType: "audio/mpeg",
+});
+
+// 4. URL limpia (🔥 lo que quieres)
+const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/${key}`;
+
+// Output final
+await Actor.setOutput({
+    success: true,
+    url,
+    key,
+});
+
+console.log("✅ URL:", url);
+
+await Actor.exit();

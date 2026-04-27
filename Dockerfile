@@ -1,20 +1,19 @@
-FROM apify/actor-node:18
+FROM node:18-bullseye
 
-USER root
+# 🔥 Evita prompts interactivos
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Dependencias
-RUN apk update && apk add --no-cache \
+RUN apt-get update && apt-get install -y \
     ffmpeg \
-    bash \
     wget \
     ca-certificates \
-    libstdc++ \
-    curl \
-    unzip
+    libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# 🔥 Piper (FIX permisos + ruta correcta)
+# 🔥 Instalar Piper (compatible con glibc)
 RUN mkdir -p /opt/piper && \
     wget -qO /opt/piper/piper.tar.gz https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz && \
     tar -xzf /opt/piper/piper.tar.gz -C /opt/piper && \
@@ -23,7 +22,7 @@ RUN mkdir -p /opt/piper && \
     chmod +x /usr/local/bin/piper && \
     rm /opt/piper/piper.tar.gz
 
-# Modelos (con fallback)
+# 🔥 Modelos (con fallback)
 RUN mkdir -p /opt/models && \
     (wget -qO /opt/models/model.onnx https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/mls_10246/low/es_ES-mls_10246-low.onnx || \
      wget -qO /opt/models/model.onnx https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/amy/low/es_ES-amy-low.onnx) && \
@@ -35,6 +34,6 @@ ENV MODEL_PATH=/opt/models/model.onnx
 COPY package*.json ./
 RUN npm install --omit=dev
 
-COPY . ./
+COPY . .
 
 CMD ["node", "main.js"]

@@ -1,29 +1,31 @@
 FROM apify/actor-node:18
 
 # =========================
-# DEPENDENCIAS (ALPINE → apk)
+# DEPENDENCIAS (ALPINE)
 # =========================
 RUN apk add --no-cache \
     ffmpeg \
     wget \
     ca-certificates \
-    bash
+    tar
 
 # =========================
-# INSTALAR PIPER
+# INSTALAR PIPER (SIN ERRORES)
 # =========================
 WORKDIR /opt
 
 RUN wget https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz \
     && tar -xzf piper_linux_x86_64.tar.gz \
-    && mv piper /opt/piper
+    && chmod +x piper/piper
 
+# BINARIO
 RUN ln -s /opt/piper/piper /usr/local/bin/piper
 
+# LIBS
 ENV LD_LIBRARY_PATH=/opt/piper
 
 # =========================
-# MODELO MLS 10246 (LOW REAL)
+# MODELO REAL (MLS 10246 LOW)
 # =========================
 WORKDIR /opt/models
 
@@ -33,7 +35,7 @@ RUN wget https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/mls_1
 # =========================
 # APP
 # =========================
-WORKDIR /usr/src/app
+WORKDIR /app
 
 COPY package*.json ./
 RUN npm install

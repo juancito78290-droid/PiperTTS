@@ -1,56 +1,57 @@
 import { Actor } from 'apify';
-import fs from 'fs';
 import { execSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 
 await Actor.init();
 
 const input = await Actor.getInput();
-const text = input?.text || "Hola, audio generado con Piper.";
+const text = input?.text || "Hola, esto es una prueba";
 
-const wavFile = "output.wav";
-const mp3File = "output.mp3";
+const id = Date.now();
+const wavPath = `/tmp/output-${id}.wav`;
+const mp3Path = `/tmp/output-${id}.mp3`;
 
 // =========================
-// GENERAR WAV
+// GENERAR WAV CON PIPER
 // =========================
-console.log("🔊 Generando WAV...");
-
-execSync(
-    `echo "${text.replace(/"/g, '\\"')}" | piper \
-    --model /opt/models/model.onnx \
-    --config /opt/models/model.onnx.json \
-    --output_file ${wavFile}`,
-    { stdio: "inherit", shell: "/bin/bash" }
-);
+execSync(`
+echo "${text.replace(/"/g, '\\"')}" | piper \
+  --model /opt/models/model.onnx \
+  --config /opt/models/model.onnx.json \
+  --output_file ${wavPath}
+`);
 
 // =========================
 // CONVERTIR A MP3
 // =========================
-console.log("🎵 Convirtiendo a MP3...");
-
-execSync(
-    `ffmpeg -y -i ${wavFile} -codec:a libmp3lame -qscale:a 2 ${mp3File}`,
-    { stdio: "inherit" }
-);
+execSync(`
+ffmpeg -y -i ${wavPath} -codec:a libmp3lame -qscale:a 2 ${mp3Path}
+`);
 
 // =========================
-// SUBIR A KV STORE
+// SUBIR A KEY-VALUE STORE
 // =========================
-console.log("☁️ Subiendo...");
-
 const store = await Actor.openKeyValueStore();
 
-const buffer = fs.readFileSync(mp3File);
+const fileBuffer = fs.readFileSync(mp3Path);
 
-await store.setValue("audio.mp3", buffer, {
-    contentType: "audio/mpeg",
+const fileName = `audio-${id}.mp3`;
+
+await store.setValue(fileName, fileBuffer, {
+    contentType: 'audio/mpeg',
 });
 
-// URL directa (IMPORTANTE)
-const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/audio.mp3`;
+// =========================
+// URL PUBLICA
+// =========================
+const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/${fileName}`;
 
-console.log("✅ URL:", url);
-
-await Actor.pushData({ url });
+// =========================
+// OUTPUT
+// =========================
+await Actor.setValue('OUTPUT', {
+    url,
+});
 
 await Actor.exit();

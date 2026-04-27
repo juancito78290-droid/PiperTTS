@@ -1,44 +1,65 @@
-import { execSync } from "child_process";
-import fs from "fs";
-import Apify from "apify";
+import { Actor } from 'apify';
+import fs from 'fs';
+import { execSync } from 'child_process';
 
-const text = process.env.TEXT || "Hola, este es un test de voz con Piper";
+await Actor.init();
 
-const WAV_PATH = "/tmp/output.wav";
-const MP3_PATH = "/tmp/output.mp3";
+// =========================
+// INPUT
+// =========================
+const input = await Actor.getInput();
+const text = input?.text || "Hola, este es un audio generado con Piper TTS.";
 
-(async () => {
-    try {
-        console.log("🧠 Generando audio con Piper...");
+// Archivos
+const wavFile = "output.wav";
+const mp3File = "output.mp3";
 
-        execSync(`
-            echo "${text.replace(/"/g, '\\"')}" | \
-            piper \
-            --model /opt/models/model.onnx \
-            --output_file ${WAV_PATH}
-        `, { stdio: "inherit" });
+// =========================
+// GENERAR WAV (PIPER)
+// =========================
+console.log("🔊 Generando WAV...");
 
-        console.log("🔄 Convirtiendo a MP3...");
+execSync(`
+    echo "${text.replace(/"/g, '\\"')}" | piper \
+    --model /opt/models/model.onnx \
+    --config /opt/models/model.onnx.json \
+    --output_file ${wavFile}
+`, { stdio: "inherit" });
 
-        execSync(`
-            ffmpeg -y -i ${WAV_PATH} -codec:a libmp3lame -qscale:a 2 ${MP3_PATH}
-        `, { stdio: "inherit" });
+// =========================
+// CONVERTIR A MP3 (FFMPEG)
+// =========================
+console.log("🎵 Convirtiendo a MP3...");
 
-        const fileBuffer = fs.readFileSync(MP3_PATH);
-        const fileName = `output-${Date.now()}.mp3`;
+execSync(`
+    ffmpeg -y -i ${wavFile} -codec:a libmp3lame -qscale:a 2 ${mp3File}
+`, { stdio: "inherit" });
 
-        await Apify.setValue(fileName, fileBuffer, {
-            contentType: "audio/mpeg"
-        });
+// =========================
+// SUBIR A KV STORE
+// =========================
+console.log("☁️ Subiendo a KV Store...");
 
-        const url = `https://api.apify.com/v2/key-value-stores/default/records/${fileName}`;
+const store = await Actor.openKeyValueStore();
 
-        console.log("✅ MP3 URL:", url);
+const buffer = fs.readFileSync(mp3File);
 
-        await Apify.exit();
+await store.setValue("audio.mp3", buffer, {
+    contentType: "audio/mpeg",
+});
 
-    } catch (err) {
-        console.error("❌ ERROR:", err.message);
-        process.exit(1);
-    }
-})();
+// =========================
+// URL PÚBLICA
+// =========================
+const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/audio.mp3?disableRedirect=true`;
+
+console.log("✅ URL:", url);
+
+// =========================
+// OUTPUT FINAL
+// =========================
+await Actor.pushData({
+    url,
+});
+
+await Actor.exit();

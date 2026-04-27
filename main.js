@@ -18,7 +18,7 @@ const store = await Actor.openKeyValueStore();
 const existing = await store.getValue('OUTPUT.mp3');
 
 if (existing) {
-    const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/OUTPUT.mp3?disableRedirect=false`;
+    const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/OUTPUT.mp3?disableRedirect=true`;
     console.log("♻️ CACHE HIT");
     console.log(url);
     await Actor.exit();
@@ -68,7 +68,7 @@ try {
         contentType: 'audio/mpeg',
     });
 
-    const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/OUTPUT.mp3?disableRedirect=false`;
+    const url = `https://api.apify.com/v2/key-value-stores/${store.id}/records/OUTPUT.mp3?disableRedirect=true`;
 
     console.log("✅ AUDIO LISTO:");
     console.log(url);

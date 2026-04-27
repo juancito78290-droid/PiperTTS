@@ -4,6 +4,13 @@ import fs from "fs";
 
 await Actor.init();
 
+// 🔥 Validar que piper existe
+try {
+    execSync("which piper", { stdio: "inherit" });
+} catch {
+    throw new Error("Piper no está instalado correctamente");
+}
+
 const input = await Actor.getInput();
 const text = input?.text || "Hola, este es un test de voz con Piper";
 
@@ -15,7 +22,7 @@ try {
 
     execSync(`
         echo "${text.replace(/"/g, '\\"')}" | \
-        ${process.env.PIPER_BIN} \
+        piper \
         --model ${process.env.MODEL_PATH} \
         --output_file ${WAV_PATH}
     `, { stdio: "inherit" });

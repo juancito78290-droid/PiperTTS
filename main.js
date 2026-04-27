@@ -6,45 +6,54 @@ await Actor.init();
 
 const input = await Actor.getInput();
 
-const {
-    text = "Hola, audio generado con Piper",
-    model = "/app/models/es_ES-davefx-medium.onnx",
-} = input;
+// INPUT esperado:
+// {
+//   "wavUrl": "https://.../audio.wav"
+// }
 
-const wavFile = "output.wav";
-const mp3File = "output.mp3";
-const textFile = "input.txt";
+if (!input?.wavUrl) {
+    throw new Error('Falta wavUrl');
+}
 
-// Guardar texto
-fs.writeFileSync(textFile, text);
+const wavPath = '/tmp/input.wav';
+const mp3Path = '/tmp/output.mp3';
 
-// 1. Generar WAV con Piper
-const piperCmd = `piper --model ${model} --output_file ${wavFile} < ${textFile}`;
-console.log("Piper:", piperCmd);
-execSync(piperCmd, { stdio: 'inherit' });
+try {
+    // 1. Descargar WAV
+    const response = await fetch(input.wavUrl);
+    if (!response.ok) throw new Error('No se pudo descargar WAV');
 
-// 2. Convertir WAV → MP3 con FFmpeg
-const ffmpegCmd = `ffmpeg -i ${wavFile} -vn -ar 44100 -ac 2 -b:a 192k ${mp3File}`;
-console.log("FFmpeg:", ffmpegCmd);
-execSync(ffmpegCmd, { stdio: 'inherit' });
+    const buffer = Buffer.from(await response.arrayBuffer());
+    fs.writeFileSync(wavPath, buffer);
 
-// 3. Subir MP3 a Apify KV Store
-const store = await Actor.openKeyValueStore();
+    // 2. Convertir a MP3
+    execSync(`ffmpeg -y -i ${wavPath} -codec:a libmp3lame -qscale:a 2 ${mp3Path}`);
 
-await store.setValue('output.mp3', fs.readFileSync(mp3File), {
-    contentType: 'audio/mpeg',
-});
+    // 3. Leer archivo MP3
+    const mp3Buffer = fs.readFileSync(mp3Path);
 
-// 4. Generar LINK REAL
-const storeInfo = await store.getInfo();
+    // 4. Subir a Key-Value Store (link público)
+    const store = await Actor.openKeyValueStore();
+    const key = 'output.mp3';
 
-const fileUrl = `https://api.apify.com/v2/key-value-stores/${storeInfo.id}/records/output.mp3`;
+    await store.setValue(key, mp3Buffer, {
+        contentType: 'audio/mpeg',
+    });
 
-await Actor.pushData({
-    status: "ok",
-    url: fileUrl
-});
+    const publicUrl = `https://api.apify.com/v2/key-value-stores/${store.id}/records/${key}?disableRedirect=true`;
 
-console.log("MP3 URL:", fileUrl);
+    // 5. Output final
+    await Actor.setOutput({
+        success: true,
+        mp3Url: publicUrl,
+    });
+
+} catch (err) {
+    console.error(err);
+    await Actor.setOutput({
+        success: false,
+        error: err.message,
+    });
+}
 
 await Actor.exit();

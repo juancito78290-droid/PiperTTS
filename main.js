@@ -15,7 +15,6 @@ text = text.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
 const store = await Actor.openKeyValueStore();
 
 // 🔥 CACHE
-const hash = crypto.createHash('md5').update(text).digest('hex');
 const existing = await store.getValue('OUTPUT.mp3');
 
 if (existing) {
@@ -32,7 +31,6 @@ const outputPath = "/tmp/output.mp3";
 try {
     console.log("⚡ Generando audio ultra rápido...");
 
-    // 🔥 PIPER (stdout)
     const piper = spawn("piper", [
         "--model", model,
         "--output_file", "-",
@@ -42,19 +40,20 @@ try {
         "--sentence_silence", "0.0"
     ]);
 
-    // 🔥 FFMPEG (stdin)
+    // 🔥 FIX: formato de entrada explícito
     const ffmpeg = spawn("ffmpeg", [
         "-y",
+        "-f", "s16le",        // 🔥 formato raw
+        "-ar", "22050",       // 🔥 sample rate (clave)
+        "-ac", "1",           // 🔥 mono
         "-i", "pipe:0",
         "-acodec", "libmp3lame",
         "-b:a", "96k",
         outputPath
     ]);
 
-    // 🔗 PIPE DIRECTO (sin WAV en disco)
     piper.stdout.pipe(ffmpeg.stdin);
 
-    // enviar texto a piper
     piper.stdin.write(text);
     piper.stdin.end();
 

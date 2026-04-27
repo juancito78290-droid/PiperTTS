@@ -1,10 +1,11 @@
-FROM apify/actor-node:18
+FROM node:18-bullseye
 
 # Instalar dependencias
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     wget \
     unzip \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Instalar Piper
@@ -16,14 +17,16 @@ RUN wget https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x
 # Crear carpeta de modelos
 RUN mkdir -p /models
 
-# Modelo correcto (mls_10246)
+# Modelo correcto
 RUN wget -O /models/model.onnx https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/mls_10246/medium/es_ES-mls_10246-medium.onnx \
     && wget -O /models/model.onnx.json https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/mls_10246/medium/es_ES-mls_10246-medium.onnx.json
 
 # App
+WORKDIR /app
+
 COPY package*.json ./
 RUN npm install --omit=dev
 
-COPY . ./
+COPY . .
 
 CMD ["node", "main.cjs"]

@@ -6,13 +6,6 @@ await Actor.init();
 
 const PIPER_PATH = "/usr/local/bin/piper";
 
-// 🔥 Validar que existe
-try {
-    execSync(`${PIPER_PATH} --help`, { stdio: "ignore" });
-} catch {
-    throw new Error("Piper no ejecutable o no encontrado");
-}
-
 const input = await Actor.getInput();
 const text = input?.text || "Hola, este es un test de voz con Piper";
 

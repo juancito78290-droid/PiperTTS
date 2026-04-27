@@ -1,12 +1,10 @@
 FROM apify/actor-node:18
 
-ENV DEBIAN_FRONTEND=noninteractive
-
-RUN apt-get update && apt-get install -y \
+# Alpine usa apk, no apt-get
+RUN apk add --no-cache \
     ffmpeg \
     wget \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    ca-certificates
 
 # Instalar Piper
 WORKDIR /tmp

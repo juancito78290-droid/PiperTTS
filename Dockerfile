@@ -1,24 +1,27 @@
-FROM apify/actor-node:18
+FROM node:18-bullseye
 
-# Alpine → usar apk
-RUN apk add --no-cache \
-    wget \
+# Instalar dependencias
+RUN apt-get update && apt-get install -y \
     ffmpeg \
-    ca-certificates
+    wget \
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
 
 # Instalar Piper
-RUN mkdir -p /opt/piper && \
-    wget https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz && \
+RUN wget https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz && \
     tar -xzf piper_linux_x86_64.tar.gz && \
-    cp -r piper/* /opt/piper && \
-    chmod +x /opt/piper/piper
+    mv piper /usr/local/bin/
 
-# ✅ MODELO REAL (hls10246 LOW)
+# Descargar modelo hls10246 (España)
 RUN mkdir -p /models && \
-    wget -O /models/model.onnx https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/hls10246/low/es_ES-hls10246-low.onnx && \
-    wget -O /models/model.onnx.json https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/hls10246/low/es_ES-hls10246-low.onnx.json
+    wget -O /models/model.onnx https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/hls10246/es_ES-hls10246.onnx && \
+    wget -O /models/model.onnx.json https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/hls10246/es_ES-hls10246.onnx.json
 
 WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
 COPY . .
 
 CMD ["node", "main.js"]

@@ -5,9 +5,9 @@ import fs from 'fs';
 await Actor.init();
 
 const input = await Actor.getInput() || {};
-const text = input.text || "Hola, probando la voz ALD correctamente";
+const text = input.text || "Hola, probando la voz MLS correctamente";
 
-const model = "/models/es_ES-ald-medium.onnx";
+const model = "/models/es_ES-mls_10246-low.onnx";
 const outputWav = "/tmp/output.wav";
 const outputMp3 = "/tmp/output.mp3";
 
@@ -20,7 +20,7 @@ try {
     // Leer texto (evita freeze)
     const textInput = fs.readFileSync('/tmp/input.txt', 'utf-8');
 
-    // 🔥 Piper optimizado
+    // 🔥 Piper
     execSync(
         `piper --model ${model} \
         --output_file ${outputWav} \

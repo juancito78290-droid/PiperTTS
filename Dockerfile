@@ -1,34 +1,41 @@
-FROM node:18-bullseye
+FROM apify/actor-node:18
 
-WORKDIR /app
+USER root
 
-RUN apt-get update && apt-get install -y \
+# Instalar dependencias (ALPINE → usar apk, NO apt-get)
+RUN apk add --no-cache \
     ffmpeg \
     wget \
     tar \
-    libstdc++6 \
-    libgcc-s1 \
-    libespeak-ng1 \
-    espeak-ng \
-    && rm -rf /var/lib/apt/lists/*
+    libstdc++ \
+    libgcc \
+    espeak-ng
 
-# Instalar Piper (binario correcto)
+# Instalar Piper correctamente (con librerías)
 WORKDIR /opt/piper
 
 RUN wget https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz \
     && tar -xzf piper_linux_x86_64.tar.gz \
-    && cp piper/piper /usr/local/bin/piper \
+    && cp -r piper/* /usr/local/ \
     && chmod +x /usr/local/bin/piper
 
-RUN which piper && piper --help
+# Asegurar que las librerías sean encontradas
+ENV LD_LIBRARY_PATH=/usr/local/lib
 
-# Modelo
-RUN mkdir -p /opt/models \
-    && wget -O /opt/models/model.onnx https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/mai/medium/es_ES-mai-medium.onnx
+# Crear carpeta de modelos
+WORKDIR /opt/models
+
+# ⚠️ IMPORTANTE:
+# Debes subir tu modelo .onnx a tu repo o descargarlo aquí
+# Ejemplo (puedes cambiarlo por tu modelo real):
+RUN wget https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/medium/es_ES-medium.onnx -O model.onnx
+
+# Volver al app
+WORKDIR /usr/src/app
 
 COPY package*.json ./
-RUN npm install
+RUN npm install --omit=dev
 
-COPY . ./
+COPY . .
 
 CMD ["node", "main.js"]

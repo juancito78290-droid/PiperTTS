@@ -1,7 +1,6 @@
 import { Actor } from 'apify';
 import { spawn } from 'child_process';
 import fs from 'fs';
-import crypto from 'crypto';
 
 await Actor.init();
 
@@ -24,49 +23,49 @@ if (existing) {
     await Actor.exit();
 }
 
-// 🔥 CONFIG
-const model = "/models/es_AR-daniela-high.onnx";
+// 🔥 CONFIG (MLS 10246 LOW)
+const model = "/models/es_ES-mls_10246-low.onnx";
 const tempWav = "/tmp/temp.wav";
-const outputPath = "/tmp/output.mp3";
+const outputMp3 = "/tmp/output.mp3";
 
 try {
-    console.log("⚡ Generando audio...");
+    console.log("⚡ Generando audio rápido y estable...");
 
     // =========================
-    // 🔊 GENERAR WAV (FIX CLAVE)
+    // 🔊 PIPER (estable)
     // =========================
     await new Promise((resolve, reject) => {
         const piper = spawn("piper", [
             "--model", model,
             "--output_file", tempWav,
-            "--length_scale", "1.15",
-            "--noise_scale", "0.2",
-            "--noise_w", "0.3",
+            "--length_scale", "1.08",
+            "--noise_scale", "0.35",
+            "--noise_w", "0.6",
             "--sentence_silence", "0.0"
         ]);
 
         piper.stdin.write(text);
         piper.stdin.end();
 
-        piper.on('close', (code) => {
+        piper.on('close', code => {
             if (code === 0) resolve();
             else reject(new Error("piper error"));
         });
     });
 
     // =========================
-    // 🎵 CONVERTIR A MP3
+    // 🎵 FFmpeg (rápido)
     // =========================
     await new Promise((resolve, reject) => {
         const ffmpeg = spawn("ffmpeg", [
             "-y",
             "-i", tempWav,
             "-acodec", "libmp3lame",
-            "-b:a", "96k",
-            outputPath
+            "-b:a", "64k", // 🔥 balance calidad/velocidad
+            outputMp3
         ]);
 
-        ffmpeg.on('close', (code) => {
+        ffmpeg.on('close', code => {
             if (code === 0) resolve();
             else reject(new Error("ffmpeg error"));
         });
@@ -75,7 +74,7 @@ try {
     // =========================
     // 💾 GUARDAR
     // =========================
-    await store.setValue('OUTPUT.mp3', fs.readFileSync(outputPath), {
+    await store.setValue('OUTPUT.mp3', fs.readFileSync(outputMp3), {
         contentType: 'audio/mpeg',
     });
 

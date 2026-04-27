@@ -1,13 +1,13 @@
 FROM apify/actor-node:18
 
 # =========================
-# DEPENDENCIAS
+# DEPENDENCIAS (ALPINE → apk)
 # =========================
-RUN apt-get update && apt-get install -y \
+RUN apk add --no-cache \
     ffmpeg \
     wget \
     ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    bash
 
 # =========================
 # INSTALAR PIPER
@@ -23,7 +23,7 @@ RUN ln -s /opt/piper/piper /usr/local/bin/piper
 ENV LD_LIBRARY_PATH=/opt/piper
 
 # =========================
-# MODELO MLS 10246 (LOW)
+# MODELO MLS 10246 (LOW REAL)
 # =========================
 WORKDIR /opt/models
 

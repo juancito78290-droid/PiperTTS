@@ -1,31 +1,22 @@
 FROM node:18-bullseye
 
-# Instalar dependencias
+# 🔥 Instalar dependencias necesarias
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     wget \
     unzip \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
-
-# Instalar dependencias Node
-COPY package*.json ./
-RUN npm install
-
-# Copiar código
-COPY . .
-
 # =========================
 # 🔥 INSTALAR PIPER
 # =========================
 RUN wget https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz \
-    && tar -xzf piper_linux_x86_64.tar.gz \
-    && mv piper /usr/local/bin/ \
+    && tar -xvf piper_linux_x86_64.tar.gz \
+    && mv piper /usr/local/bin/piper \
     && chmod +x /usr/local/bin/piper
 
 # =========================
-# 🔥 DESCARGAR MODELO MLS10246
+# 🔥 MODELO (MLS 10246)
 # =========================
 RUN mkdir -p /models
 
@@ -34,6 +25,16 @@ https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/mls_10246/low/
 
 RUN wget -O /models/es_ES-mls_10246-low.onnx.json \
 https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_ES/mls_10246/low/es_ES-mls_10246-low.onnx.json
+
+# =========================
+# 🔥 APP
+# =========================
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install --omit=dev
+
+COPY . .
 
 # =========================
 # 🚀 RUN

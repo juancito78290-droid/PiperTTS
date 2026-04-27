@@ -20,11 +20,11 @@ RUN mkdir -p /opt/piper && \
     ln -s /opt/piper/piper /usr/bin/piper && \
     rm /tmp/piper.tar.gz
 
-# 🔊 Modelo MLS_10246 (LOW)
+# 🔥 MODELO DANIELA HIGH
 RUN mkdir -p /models && \
-    wget -O /models/es_ES-mls_10246-low.onnx \
-    https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/es/es_ES/mls_10246/low/es_ES-mls_10246-low.onnx && \
-    wget -O /models/es_ES-mls_10246-low.onnx.json \
-    https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/es/es_ES/mls_10246/low/es_ES-mls_10246-low.onnx.json
+    wget -O /models/es_AR-daniela-high.onnx \
+    https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/daniela/high/es_AR-daniela-high.onnx && \
+    wget -O /models/es_AR-daniela-high.onnx.json \
+    https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/daniela/high/es_AR-daniela-high.onnx.json
 
 CMD ["node", "main.js"]

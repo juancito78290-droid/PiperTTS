@@ -8,15 +8,6 @@ const os   = require('os');
 const PIPER_BIN  = '/usr/local/bin/piper';
 const MODEL_PATH = '/usr/local/piper/voices/es_ES-mls_10246-low.onnx';
 
-// Divide texto en frases para evitar picos de RAM
-function splitSentences(text) {
-    const sentences = text
-        .split(/(?<=[.!?¡¿,;:])\s+/)
-        .map(s => s.trim())
-        .filter(s => s.length > 0);
-    return sentences.length > 0 ? sentences : [text.trim()];
-}
-
 // execSync con reintentos automáticos
 function execWithRetry(cmd, opts = {}, retries = 3) {
     let lastError;
@@ -27,7 +18,6 @@ function execWithRetry(cmd, opts = {}, retries = 3) {
         } catch (err) {
             lastError = err;
             console.log(`   ⚠️  Intento ${i}/${retries} falló. Reintentando...`);
-            // Espera 1s entre intentos
             execSync('sleep 1');
         }
     }
@@ -69,63 +59,37 @@ Actor.main(async () => {
 
     try {
 
-        // ── Procesar frase por frase ───────────────────────────────────────────
-        const sentences = splitSentences(text);
-        console.log(`📝  Frases: ${sentences.length}`);
+        // ── Procesar texto completo de una sola vez ────────────────────────────
+        console.log(`📝  Procesando texto completo (${text.length} caracteres)`);
 
-        const wavFiles = [];
+        const txtFile = path.join(tmpDir, 'input.txt');
+        const wavFile = path.join(tmpDir, 'output.wav');
 
-        for (let i = 0; i < sentences.length; i++) {
-            const sentence = sentences[i];
-            const txtFile  = path.join(tmpDir, `chunk_${i}.txt`);
-            const wavFile  = path.join(tmpDir, `chunk_${i}.wav`);
+        fs.writeFileSync(txtFile, text, 'utf8');
 
-            fs.writeFileSync(txtFile, sentence, 'utf8');
-            console.log(`🔊  [${i + 1}/${sentences.length}] "${sentence.substring(0, 60)}${sentence.length > 60 ? '…' : ''}"`);
+        execWithRetry(
+            `cat "${txtFile}" | "${PIPER_BIN}" ` +
+            `--model "${MODEL_PATH}" ` +
+            `--output_file "${wavFile}" ` +
+            `--noise_scale ${noiseScale} ` +
+            `--noise_w ${noiseW} ` +
+            `--length_scale ${lengthScale} ` +
+            `--sentence-silence 0.3`
+        );
 
-            // Piper con reintentos
-            execWithRetry(
-                `cat "${txtFile}" | "${PIPER_BIN}" ` +
-                `--model "${MODEL_PATH}" ` +
-                `--output_file "${wavFile}" ` +
-                `--noise_scale ${noiseScale} ` +
-                `--noise_w ${noiseW} ` +
-                `--length_scale ${lengthScale} ` +
-                `--sentence-silence 0.3`
-            );
-
-            // Verificar WAV generado
-            if (!fs.existsSync(wavFile) || fs.statSync(wavFile).size < 100) {
-                throw new Error(`WAV vacío o no generado para frase ${i + 1}: "${sentence}"`);
-            }
-
-            console.log(`   ✅ WAV ${i + 1}: ${(fs.statSync(wavFile).size / 1024).toFixed(1)} KB`);
-            wavFiles.push(wavFile);
-
-            // Limpiar txt procesado de inmediato
-            try { fs.unlinkSync(txtFile); } catch (_) {}
+        if (!fs.existsSync(wavFile) || fs.statSync(wavFile).size < 100) {
+            throw new Error('WAV vacío o no generado.');
         }
 
-        // ── Concatenar WAVs y convertir a MP3 ─────────────────────────────────
+        console.log(`   ✅ WAV: ${(fs.statSync(wavFile).size / 1024).toFixed(1)} KB`);
+
+        // ── Convertir a MP3 ───────────────────────────────────────────────────
         console.log('🔄  Convirtiendo a MP3...');
 
-        let ffmpegCmd;
-
-        if (wavFiles.length === 1) {
-            ffmpegCmd =
-                `"${ffmpegPath}" -y ` +
-                `-i "${wavFiles[0]}" ` +
-                `-codec:a libmp3lame -qscale:a 2 -ar 22050 "${mp3File}"`;
-        } else {
-            const inputs = wavFiles.map(f => `-i "${f}"`).join(' ');
-            const filter = `[${wavFiles.map((_, i) => `${i}:a`).join('][')}]` +
-                           `concat=n=${wavFiles.length}:v=0:a=1[out]`;
-            ffmpegCmd =
-                `"${ffmpegPath}" -y ` +
-                `${inputs} ` +
-                `-filter_complex "${filter}" -map "[out]" ` +
-                `-codec:a libmp3lame -qscale:a 2 -ar 22050 "${mp3File}"`;
-        }
+        const ffmpegCmd =
+            `"${ffmpegPath}" -y ` +
+            `-i "${wavFile}" ` +
+            `-codec:a libmp3lame -qscale:a 2 -ar 22050 "${mp3File}"`;
 
         execWithRetry(ffmpegCmd, { timeout: 120_000 });
 
@@ -154,7 +118,6 @@ Actor.main(async () => {
             storeId,
             recordKey,
             model        : 'es_ES-mls_10246-low',
-            sentences    : sentences.length,
             textLength   : text.length,
             mp3SizeBytes : mp3Size,
             generatedAt  : new Date().toISOString(),
